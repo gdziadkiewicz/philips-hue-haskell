@@ -1,5 +1,6 @@
 module Hue.Endpoint (
   Endpoint
+, api
 , root 
 , (/:)
 , (/~)

@@ -17,14 +17,21 @@ import Blaze.ByteString.Builder (toByteString)
 import Network.HTTP.Types.URI (encodePathSegments)
 import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
 
--- | The root API endpoint
-root :: Endpoint method body result
-root = Endpoint []
 
 -- | Type repersenting a bridge API endpoint that can be queried.
+-- Endpoints identify:
 -- 
--- And endpoint can be built by appending an 'EndpointSegment' to an existing Endpoint 
--- with either '/:' or '/~'.
+--  * which API gets called,
+-- 
+--  * which request method is used,
+-- 
+--  * the body of the request,
+-- 
+--  * the result of the request.
+-- 
+-- Endpoints can be found in the module that they functionally belong to, for example see 'lights' in "Hue.Light".
+-- 
+-- An endpoint can be built by appending an 'EndpointSegment' to an existing Endpoint with either '/:' or '/~'.
 -- 
 -- Each endpoint must have a type annotation specifying the method, request body and
 -- return type. '()' can be used for empty request body and response types.
@@ -33,9 +40,22 @@ root = Endpoint []
 -- 
 -- @
 -- lightsEndpoint :: Endpoint 'GET () [Lights]
--- lightsEndpoint = root /: "api" /~ credentials /: "lights"
+-- lightsEndpoint = api \/~ credentials /: "lights"
 -- @
 data Endpoint (method :: StdMethod) body result = Endpoint [EndpointSegment]
+
+-- | The base path for most useful endpoints:
+-- 
+-- @/api@
+api :: Endpoint method body result
+api = root /: "api"
+
+-- | The root API endpoint.
+-- 
+-- This serves as base to construct all other endpoints from.
+root :: Endpoint method body result
+root = Endpoint []
+
 
 -- | A smaller part of an endpoint.
 data EndpointSegment =

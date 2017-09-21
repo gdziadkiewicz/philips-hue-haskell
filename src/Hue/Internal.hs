@@ -47,7 +47,6 @@ evalHue config h = do
     Left (JSONParseException err) -> error $ Text.unpack err 
     Right (Left err) -> error $ show err
     Right (Right a) -> pure a
-
   where
     unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
 
@@ -91,7 +90,6 @@ request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
     performRequest req = do
       response <- liftIO $ httpLBS req
       let responseText = getResponseBody response
-      liftIO $ print responseText
       case eitherDecode responseText of 
         Left err -> throwParseError err (LBS.toStrict responseText)
         Right (HueErrorResponse err) -> throwError $ HueApiException err
