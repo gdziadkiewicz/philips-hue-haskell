@@ -12,7 +12,6 @@ module Hue.Light (
 , fetchLights
 , lightWithName
 -- * Changing light state
--- $changingLightState
 , setLight
 , Hue.Internal.Light.SetLightState
 , on, off, toggle
@@ -63,25 +62,3 @@ module Hue.Light (
 ) where 
 
 import Hue.Internal.Light
-
--- $changingLightState
--- To change the state of a single light, a 'SetLightState' object
--- has to be sent to the 'setLight' endpoint.  
--- 
--- Example:
--- 
--- @
---  lightKitchen = do
---    Just l <- lightWithName \"Kitchen\"
---    request (setLight l) on
--- @
--- 
--- Note that because 'SetLightState' represents a set of state 
--- changes, it also supports monoidially combining:
---  
--- @
---  purpleKitchen = do
---    Just l <- lightWithName \"Kitchen\"
---    request (setLight l) (on <> brightness 255 <> setHue 48500 <> saturation 255)
--- @
--- 

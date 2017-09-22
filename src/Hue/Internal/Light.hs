@@ -22,25 +22,26 @@ import qualified Data.Map as Map
 
 import qualified Data.HashMap.Lazy as HashMap
 import Data.Word
+import Data.Monoid
 import Data.Foldable
 
 import Control.Monad.Fail
 
 import Hue.Internal
-import Hue.Internal.Endpoint
+import Hue.Internal.Request
 
 -- ----------------------------------------------------------------
 -- Fetching lights
 -- ----------------------------------------------------------------
 
--- | Endpoint for fetching all lights.
+-- | Request for fetching all lights.
 -- 
 -- By default, the API returns this as a Map of lights where the 
 -- key of the Map is the light ID.
 -- 
 -- To fetch all lights with their ID, use 'fetchLights'.
-lights :: Endpoint 'GET () (Map LightID (Light 'WithoutID))
-lights = api /~ credentials /: "lights"
+lights :: Request () (Map LightID (Light 'WithoutID))
+lights = get $ api /~ credentials /: "lights"
 
 -- | Fetch a single light by it's name.
 -- 
@@ -58,9 +59,28 @@ fetchLights = fmap (uncurry setLightID) <$> Map.toList <$> request lights
 -- Changing light status
 -- ----------------------------------------------------------------
 
--- | Endpoint for changing the state of a single light.
-setLight :: Light 'WithID -> Endpoint 'PUT SetLightState ()
-setLight Light{..} = api /~ credentials /: "lights" /~ lightId /: "state"
+-- | To change the state of a single light, a 'SetLightState' object
+-- has to be sent with the 'setLight' request.  
+-- 
+-- Example:
+-- 
+-- @
+--  lightKitchen = do
+--    Just l <- lightWithName \"Kitchen\"
+--    request (setLight l) on
+-- @
+-- 
+-- Note that because 'SetLightState' represents a set of state 
+-- changes, it also supports monoidially combining:
+--  
+-- @
+--  purpleKitchen = do
+--    Just l <- lightWithName \"Kitchen\"
+--    request (setLight l) (on <> brightness 255 <> setHue 48500 <> saturation 255)
+-- @
+--
+setLight :: Light 'WithID -> Request SetLightState ()
+setLight Light{..} = put $ api /~ credentials /: "lights" /~ lightId /: "state"
 
 -- | Turn the light on.
 on :: SetLightState
@@ -181,22 +201,22 @@ noEffect = mkSetLightState $ SetEffect NoEffect
 -- Renaming / deleting lights
 -- ----------------------------------------------------------------
 
--- | Endpoint to call when you wish to change the name of a light.
+-- | Request for when you wish to change the name of a light.
 -- 
 -- A light can have its name changed even when it is unreachable 
 -- or turned off.
-renameLight :: Light 'WithID -> Endpoint 'PUT LightName ()
-renameLight Light{..} = api /~ credentials /: "lights" /~ lightId
+renameLight :: Light 'WithID -> Request LightName ()
+renameLight Light{..} = put $ api /~ credentials /: "lights" /~ lightId
 
--- | Endpoint for deleting a light.
+-- | Request for deleting a light.
 -- 
 -- The light will be removed from the list of lights from and any
 -- groups in the bridge. This will cause Scenes to be updated.
 -- 
 -- Note that the device is not physically removed from the ZigBee
 -- network.
-deleteLight :: Light 'WithID -> Endpoint 'DELETE () ()
-deleteLight Light{..} = api /~ credentials /: "lights" /~ lightId
+deleteLight :: Light 'WithID -> Request () ()
+deleteLight Light{..} = delete $ api /~ credentials /: "lights" /~ lightId
 
 
 -- ----------------------------------------------------------------
@@ -214,21 +234,21 @@ deleteLight Light{..} = api /~ credentials /: "lights" /~ lightId
 -- search will continue for at least an additional 40s.
 -- 
 -- When the search has finished, new lights will be available using
--- the 'newLights' endpoint. In addition, the new lights will now
+-- the 'newLights' request. In addition, the new lights will now
 -- be available by calling 'lights' or 'fetchLights' or by calling 
 -- get group attributes on group 0. 
 -- 
 -- Group 0 is a special group that cannot be 
 -- deleted and will always contain all lights known by the bridge.
-searchNewLights ::  Endpoint 'POST () ()
-searchNewLights = api /~ credentials /: "lights"
+searchNewLights ::  Request () ()
+searchNewLights = post $ api /~ credentials /: "lights"
 
 -- | Gets a 'ScanResult' since the last time 'searchNewLights'
 -- was requested.
 -- 
 -- The returned scan results are reset when a new scan is started.
-newLights :: Endpoint 'GET () ScanResult
-newLights = api /~ credentials /: "lights" /: "new"
+newLights :: Request () ScanResult
+newLights = get $ api /~ credentials /: "lights" /: "new"
 
 
 -- ----------------------------------------------------------------
@@ -247,7 +267,7 @@ type family LightIDType (a :: KnownID) where
 
 -- | Represents a light.
 -- 
--- This type is indexed by a 'KnownID' because some endpoints
+-- This type is indexed by a 'KnownID' because some requests
 -- return lights without their ID.
 -- 
 -- See 'lights' vs 'fetchLights'.
@@ -432,7 +452,7 @@ instance FromJSON ScanStatus where
     "active" -> pure ScanActive
     time -> LastScan <$> parseJSON (String time) 
 
-instance ToEndpointSegment LightID where
+instance ToPathSegment LightID where
   toSegment (LightID lId) = toSegment $ Text.pack $ show lId
 
 

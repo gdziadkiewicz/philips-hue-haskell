@@ -27,19 +27,19 @@ import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 
 import Hue.Internal
-import Hue.Internal.Endpoint
+import Hue.Internal.Request
 
--- | The authentication endpoint.
+-- | The authentication request.
 -- 
--- POST a 'HueDeviceType' to this endpoint after the user pushes the bridge button
--- to get fresh credentials.
+-- Send this request after the user pushes the bridge button to get fresh credentials.
 --
 -- See also: 'registerApp' 
-auth :: Endpoint 'POST HueDeviceType HueCredentials
-auth = root
+auth :: Request HueDeviceType HueCredentials
+auth = post root
 
--- | Authenticate with the brigde
--- or fetch existing credentials from @~/.hue/credentials@
+-- | Get an authentication token.
+-- This function first tries to read the token from @~/.hue/credentials@.
+-- If this fails, 'registerApp' is called and the result will be stored on disk. 
 getHueCredentials :: Hue HueCredentials
 getHueCredentials = do
   fromJust <$> runMaybeT (
@@ -72,7 +72,7 @@ registerApp = do
         Just <$> request auth (HueDeviceType $ Text.pack deviceName)
       ) `catchError` handleApiException
 
-    handleApiException :: (MonadIO m, MonadError HueException m) => HueException -> m (Maybe a)
+    handleApiException :: (MonadIO m, MonadError HueApiException m) => HueApiException -> m (Maybe a)
     handleApiException err@(HueApiException [HueError code _]) = 
       if buttonNotYetPushed
         then pure Nothing

@@ -1,10 +1,16 @@
 {-# LANGUAGE ConstraintKinds, TypeFamilies, GADTs, UndecidableInstances, GeneralizedNewtypeDeriving #-}
+-- |
+-- Module: Hue.Internal 
+-- Copyright: (c) 2017 Thomas Smith
+-- License: BSD3
+-- Maintainer: Thomas Smith <tnsmith@live.nl>
+-- Stability: experimental
+--
+-- Base functions and types to perform requests against the Hue bridge.
 module Hue.Internal where
 
-import GHC.TypeLits as TypeLits
-
-import Network.HTTP.Simple hiding (JSONParseException, Proxy)
-import Network.HTTP.Types.Method
+import Network.HTTP.Simple hiding (JSONParseException, Proxy, Request)
+import qualified Network.HTTP.Simple as HTTP
 import Data.Aeson
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
@@ -17,8 +23,6 @@ import Data.Text (Text, append)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 
-import Data.Kind
-import Data.Proxy
 import Data.Singletons
 import Data.Singletons.Prelude.Bool
 
@@ -27,17 +31,18 @@ import Control.Exception hiding (TypeError)
 import Control.Monad.Except
 import Control.Monad.Reader
 
-import Hue.Internal.Endpoint
+import Hue.Internal.Request
 
+-- | The Hue Monad. A wrapper around @ReaderT HueConfig (ExceptT HueApiException IO)@
 newtype Hue a = Hue {
-  unHue :: ReaderT HueConfig (ExceptT HueException IO) a
+  unHue :: ReaderT HueConfig (ExceptT HueApiException IO) a
   } deriving (
     Functor
   , Applicative
   , Monad
   , MonadIO
   , MonadReader HueConfig
-  , MonadError HueException)
+  , MonadError HueApiException)
 
 -- | Evaluate a hue action with a specific config
 evalHue :: MonadIO m => HueConfig -> Hue a -> m a
@@ -50,42 +55,40 @@ evalHue config h = do
   where
     unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
 
--- | Send a request to the bridge on the given Endpoint.
+-- | Send a request to the bridge on the given Request.
 -- 
--- If the Endpoint requires a non-unit body,
+-- If the Request requires a non-unit body,
 -- then you can pass the body as second argument to this request function.
-request :: forall (method :: StdMethod) body resp. 
+request :: forall body resp. 
         ( ToJSON body
         , FromJSON resp
-        , KnownMethodType method
         , SingI (IsUnit body)
         , SingI (IsUnit resp)
-        , MethodAllowsBody method body
         )
-        => Endpoint method body resp  -- ^ The API endpoint to send the request to
-        -> HueFn body resp            -- ^ A function if body is not @()@
+        => Request body resp -- ^ The API request to send the request to
+        -> HueFn body resp -- ^ A function if body is not @()@
 request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
     -- Both the body and the result are (), so parse the response as Unit and discard it
-    (STrue, STrue) -> void $ mkRequest >>= (performRequest :: Request -> Hue Unit)
+    (STrue, STrue) -> void $ mkRequest >>= (performRequest :: HTTP.Request -> Hue Unit)
     -- Only the body is (), so parse the response and return it 
     (STrue, SFalse) -> mkRequest >>= performRequest
     -- Only the response type is (), create a function that asks for the body and discard the result
-    (SFalse, STrue) -> \b -> void $ setRequestBodyJSON b <$> mkRequest >>= (performRequest :: Request -> Hue Unit)
+    (SFalse, STrue) -> \b -> void $ setRequestBodyJSON b <$> mkRequest >>= (performRequest :: HTTP.Request -> Hue Unit)
     -- Both are not (), create a function that asks for the body and return the result directly
     (SFalse, SFalse) -> \b -> setRequestBodyJSON b <$> mkRequest >>= performRequest
   where 
-    mkRequest :: Hue Request
+    mkRequest :: Hue HTTP.Request
     mkRequest = do
-      path <- endpointPath r . unCredentials . configCredentials <$> ask
+      path <- requestPath r . unCredentials . configCredentials <$> ask
       ip <- ipAddress . configIP <$> ask
       pure 
         $ setRequestPath path
-        $ setRequestMethod (getMethodType (Proxy :: Proxy method))
+        $ setRequestMethod (requestMethod r)
         $ setRequestHost ip
         $ defaultRequest
 
     performRequest :: FromJSON a
-                   => Request
+                   => HTTP.Request
                    -> Hue a
     performRequest req = do
       response <- liftIO $ httpLBS req
@@ -105,67 +108,45 @@ request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
           \Attempted to parse response:\n\t"
           `append` decodeUtf8 responseText
 
--- | Type level function to determine whether a HTTP method allows a body.
-type family MethodAllowsBody (method :: StdMethod) body :: Constraint where
-  MethodAllowsBody 'GET () = ()
-  MethodAllowsBody 'GET b = TypeError ('Text "HTTP method GET does not allow attaching a request body.")
-  MethodAllowsBody 'DELETE () = ()
-  MethodAllowsBody 'DELETE b = TypeError ('Text "HTTP method DELETE does not allow attaching a request body.")
-  MethodAllowsBody m b = ()
-
+-- | Determine the return type of the 'request' function.
 type HueFn b r = HueRequestType (IsUnit b) b (HueResponseType (IsUnit r) r)
 
+-- | If 'request' is called with @()@ as response, then the result is @Hue ()@
 type family HueResponseType isRespUnit r where
   HueResponseType 'True r = Hue ()
   HueResponseType 'False r = Hue r
 
+-- | If 'request' is called with @()@ as body, then the result is @body -> Hue a@
 type family HueRequestType isBodyUnit body r where
   HueRequestType 'True b r = r
   HueRequestType 'False b r = b -> r
 
+-- | Determine at the type level whether a type is @()@ or not.
 type family IsUnit a where
   IsUnit () = 'True
-  IsUnit a = 'False      
-
--- | Class to retrieve the request method as a runtime ByteString
--- from the method type
-class KnownMethodType (a :: StdMethod) where
-  getMethodType :: Proxy a -> ByteString
-
-instance KnownMethodType 'GET where
-  getMethodType _ = "GET"
-
-instance KnownMethodType 'PUT where
-  getMethodType _ = "PUT"
-
-instance KnownMethodType 'POST where
-  getMethodType _ = "POST"
-
-instance KnownMethodType 'DELETE where
-  getMethodType _ = "DELETE"
+  IsUnit a = 'False
 
 -- ----------------------------------------------------------------
 -- BASE TYPES
 --   Authentication
 -- ----------------------------------------------------------------
 
--- | A sample config with no credentials and the ip set to @192.168.1.100@
-defaultConfig :: HueConfig
-defaultConfig = HueConfig 
-  (BridgeIP "192.168.1.100")
-  (HueCredentials "-")
+-- | Create a HueConfig with an explicit bridge IP address. 
+configWithIP :: BridgeIP -> HueConfig
+configWithIP ip = HueConfig ip (HueCredentials "-")
 
+-- | Configuration necessary to query the bridge.
 data HueConfig = HueConfig {
   configIP :: BridgeIP
 , configCredentials :: HueCredentials
 } deriving (Show)
 
--- The IP address of the bridge to send requests to.
+-- | The IP address of the bridge to send requests to.
 newtype BridgeIP = BridgeIP {
   ipAddress :: ByteString
 } deriving (Show)
 
--- An authentication token needed for most endpoints.
+-- | An authentication token needed for most endpoints.
 newtype HueCredentials = HueCredentials {
   unCredentials :: Text
 } deriving (Show)
@@ -175,7 +156,7 @@ instance FromJSON HueCredentials where
     [HueSuccess c] <- parseJSON v
     withObject "HueCredentials object" (\o -> HueCredentials <$> o .: "username") c
 
-instance ToEndpointSegment HueCredentials where
+instance ToPathSegment HueCredentials where
   toSegment (HueCredentials creds) = TextSegment creds
 
 -- | Device type used when registering a new application with the bridge.
@@ -198,7 +179,7 @@ instance FromJSON Unit where
     _ :: [HueSuccess Value] <- parseJSON v
     pure Unit
 
--- Representation for all responses from the bridge
+-- | Representation for all responses from the bridge.
 data HueResponse a = 
     HueErrorResponse [HueError]
   | HueResponse a 
@@ -230,10 +211,12 @@ instance FromJSON HueError where
     e <- o .: "error"
     HueError <$> e .: "type" <*> e .: "description"
 
-data HueException = HueApiException [HueError] deriving (Show)
+-- | Wrapper for errors returned by the bridge.
+data HueApiException = HueApiException [HueError] deriving (Show)
 
-instance Exception HueException
+instance Exception HueApiException
 
+-- | When the bridge response cannot be parsed...
 newtype JSONParseException = JSONParseException Text deriving (Show)
 
 instance Exception JSONParseException

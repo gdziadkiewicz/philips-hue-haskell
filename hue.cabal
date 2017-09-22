@@ -12,20 +12,22 @@ category:            Web
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+description: 
+    Control Philips Hue lights with Haskell.
+    To get started, see the Hue module.
 
 library
   hs-source-dirs:      src
   build-depends:       
   default-language:    Haskell2010
   exposed-modules:     Hue
-                     , Hue.Examples
                      , Hue.Light
                      , Hue.Auth
-                     , Hue.Endpoint
+                     , Hue.Request
                      , Hue.Internal
                      , Hue.Internal.Light
                      , Hue.Internal.Auth
-                     , Hue.Internal.Endpoint
+                     , Hue.Internal.Request
   build-depends:       base >= 4.7 && < 5
                      , http-client >= 0.5 && < 0.6
                      , http-conduit >= 2.2 && < 2.3
