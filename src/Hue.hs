@@ -33,7 +33,6 @@ import Hue.Internal
 import Hue.Light
 import Hue.Request
 import Hue.Auth (getHueCredentials)
-import Data.ByteString (ByteString)
 
 -- $usage
 -- This library mainly revolves around one function: 'request'. 
@@ -82,10 +81,10 @@ import Data.ByteString (ByteString)
 -- Fetches credentials from file if present,
 -- otherwise performs pushlink registration.
 runHue :: MonadIO m 
-       => ByteString -- ^ The bridge IP address
+       => BridgeIP -- ^ The bridge IP address
        -> Hue a -- ^ The action to evaluate 
        -> m a
 runHue ip h = do
-  let conf = configWithIP $ BridgeIP ip
+  let conf = configWithIP ip
   creds <- evalHue conf getHueCredentials
   evalHue (conf { configCredentials = creds }) h

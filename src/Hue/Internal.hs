@@ -16,6 +16,7 @@ import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 import qualified Data.Vector as V
 
+import Data.String
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 
@@ -145,6 +146,10 @@ data HueConfig = HueConfig {
 newtype BridgeIP = BridgeIP {
   ipAddress :: ByteString
 } deriving (Show)
+
+instance IsString BridgeIP where
+  fromString = BridgeIP . fromString
+
 
 -- | An authentication token needed for most endpoints.
 newtype HueCredentials = HueCredentials {
