@@ -22,7 +22,6 @@ import qualified Data.Map as Map
 
 import qualified Data.HashMap.Lazy as HashMap
 import Data.Word
-import Data.Monoid
 import Data.Foldable
 
 import Control.Monad.Fail
@@ -71,10 +70,10 @@ fetchLights = fmap (uncurry setLightID) <$> Map.toList <$> request lights
 -- @
 -- 
 -- Note that because 'SetLightState' represents a set of state 
--- changes, it also supports monoidially combining:
+-- changes, it also supports monoidial combining:
 --  
 -- @
---  purpleKitchen = do
+--  veryPurpleKitchen = do
 --    Just l <- lightWithName \"Kitchen\"
 --    request (setLight l) (on <> brightness 255 <> setHue 48500 <> saturation 255)
 -- @
@@ -261,6 +260,7 @@ data KnownID =
     WithID
   | WithoutID
 
+-- | Type-level function computing the type of light identifier for a 'KnownID'.
 type family LightIDType (a :: KnownID) where
   LightIDType 'WithID = LightID
   LightIDType 'WithoutID = ()
@@ -285,12 +285,12 @@ deriving instance Show (Light 'WithoutID)
 
 -- | The display name of a light.
 newtype LightName = LightName {
-  lightNameText :: Text
+  lightNameText :: Text -- ^ Get the textual representation of a light name for human consumption.
 } deriving (Eq, Ord, Show, FromJSON)
 
 -- | Used to identify an individual light with the bridge.
 newtype LightID = LightID {
-  lightIDInt :: Int
+  lightIDInt :: Int -- ^ Get the integer value representing a LigthID.
 } deriving (Eq, Ord, Show, FromJSONKey)
 
 -- | Determines which features a bulb supports.
@@ -452,6 +452,7 @@ instance FromJSON ScanStatus where
     "active" -> pure ScanActive
     time -> LastScan <$> parseJSON (String time) 
 
+-- | LightID can be used as part of an API path.
 instance ToPathSegment LightID where
   toSegment (LightID lId) = toSegment $ Text.pack $ show lId
 

@@ -30,7 +30,7 @@ import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
 -- 
 --  * the result of the request.
 -- 
--- Requests can be found in the module that they functionally belong to, for 
+-- Pre-defined requests can be found in the module that they functionally belong to, for 
 -- example see 'lights' in "Hue.Light".
 -- 
 -- A request is built from:
@@ -109,6 +109,8 @@ credentials = CredentialsSegment
 RequestPath prev /~ segment = RequestPath (toSegment segment:prev)
 
 -- | Return the path that the request currently represents.
+-- 
+-- URL-encodes each segment.
 requestPath :: Request x y
              -> Text
              -> ByteString
@@ -127,10 +129,15 @@ requestMethod (Request m _) = fromString $ show m
   
 -- | Class for all things that can be turned into a PathSegment.
 -- Anything that has a 'Text'ual representation could have an instance.
+-- When implementing an instance of this class, you should probably first 
+-- convert your type to 'Text' and call 'toSegment' on that.
+-- 
+-- Any textual segment is URL-encoded before a request is performed.
 class ToPathSegment a where
+  -- | Encode a datatype in an API path segment. 
   toSegment :: a -> PathSegment
 
--- | identity
+-- | Identity
 instance ToPathSegment PathSegment where
   toSegment = id
 

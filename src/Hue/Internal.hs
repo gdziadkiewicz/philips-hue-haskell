@@ -34,7 +34,7 @@ import Control.Monad.Reader
 
 import Hue.Internal.Request
 
--- | The Hue Monad. A wrapper around @ReaderT HueConfig (ExceptT HueApiException IO)@
+-- | The Hue Monad.
 newtype Hue a = Hue {
   unHue :: ReaderT HueConfig (ExceptT HueApiException IO) a
   } deriving (
@@ -56,10 +56,30 @@ evalHue config h = do
   where
     unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
 
--- | Send a request to the bridge on the given Request.
+-- | Send a request to the bridge.
 -- 
--- If the Request requires a non-unit body,
--- then you can pass the body as second argument to this request function.
+-- This function gives you the opportunity to talk directly to any bridge endpoint,
+-- and provide or get data in your own types.
+-- In some cases however, calling the API directly can be cumbersome or too low level
+-- and it might be easier to use one of the pre-defined 'Hue' actions.
+-- 
+-- The result of calling this function depends on the type  of the supplied 'Request'. 
+-- There are two possible return types:
+-- 
+--  * If the body type is @()@, request immediately results in a Hue action:
+-- 
+--    >>> let someRequest = ... :: Request () SomeResult
+--    >>> :t request someRequest
+--    request someRequest :: Hue SomeResult
+-- 
+--  * Otherwise, 'request' will instead return a function asking for the body:
+-- 
+--    >>> let someRequest = ... :: Request Int SomeResult
+--    >>> :t request someRequest
+--    request someRequest :: Int -> Hue SomeResult
+-- 
+-- This makes 'request' type safe with respect to the request body and result.
+-- See "Hue.Request" for more details.
 request :: forall body resp. 
         ( ToJSON body
         , FromJSON resp
@@ -67,7 +87,7 @@ request :: forall body resp.
         , SingI (IsUnit resp)
         )
         => Request body resp -- ^ The API request to send the request to
-        -> HueFn body resp -- ^ A function if body is not @()@
+        -> HueFn body resp
 request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
     -- Both the body and the result are (), so parse the response as Unit and discard it
     (STrue, STrue) -> void $ mkRequest >>= (performRequest :: HTTP.Request -> Hue Unit)
@@ -104,9 +124,9 @@ request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
                     -> Hue a
     throwParseError err responseText = 
       liftIO $ throwIO $ Hue.Internal.JSONParseException $
-          "Error parsing bridge response: \n\t\
-          \" `append` Text.pack err `append` "\n\
-          \Attempted to parse response:\n\t"
+          "Error parsing bridge response: \n\t"
+          `append` Text.pack err
+          `append` "\nAttempted to parse response:\n\t"
           `append` decodeUtf8 responseText
 
 -- | Determine the return type of the 'request' function.
@@ -133,10 +153,16 @@ type family IsUnit a where
 -- ----------------------------------------------------------------
 
 -- | Create a HueConfig with an explicit bridge IP address. 
+-- 
+-- Credentials will be set to a default that can only be used against unauthenticated resources.
+-- 
+-- To get a HueConfig with credentials, can use the functions from "Hue.Auth".
 configWithIP :: BridgeIP -> HueConfig
 configWithIP ip = HueConfig ip (HueCredentials "-")
 
 -- | Configuration necessary to query the bridge.
+-- 
+-- Contains the bridge IP address and (optionally) credentials needed to turn lights on and off.
 data HueConfig = HueConfig {
   configIP :: BridgeIP
 , configCredentials :: HueCredentials
@@ -147,6 +173,7 @@ newtype BridgeIP = BridgeIP {
   ipAddress :: ByteString
 } deriving (Show)
 
+-- | BridgeIP can be created from String literals/
 instance IsString BridgeIP where
   fromString = BridgeIP . fromString
 
@@ -161,6 +188,7 @@ instance FromJSON HueCredentials where
     [HueSuccess c] <- parseJSON v
     withObject "HueCredentials object" (\o -> HueCredentials <$> o .: "username") c
 
+-- | Credentials can be used as part of an API path.
 instance ToPathSegment HueCredentials where
   toSegment (HueCredentials creds) = TextSegment creds
 

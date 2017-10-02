@@ -22,6 +22,7 @@ module Hue.Request (
 , PathSegment
 , credentials
 , ToPathSegment
+, toSegment
 ) where 
   
 import Hue.Internal.Request

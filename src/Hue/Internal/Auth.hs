@@ -38,7 +38,7 @@ auth :: Request HueDeviceType HueCredentials
 auth = post root
 
 -- | Get an authentication token.
--- This function first tries to read the token from @~/.hue/credentials@.
+-- This function first tries to read the token from @~\/.hue\/credentials@.
 -- If this fails, 'registerApp' is called and the result will be stored on disk. 
 getHueCredentials :: Hue HueCredentials
 getHueCredentials = do
@@ -49,7 +49,7 @@ getHueCredentials = do
     <|> 
     do 
       liftIO $ putStrLn "Credentials not present in file, registering with bridge..."
-      u <- registerApp
+      u <- lift $ registerApp
       writeCredentialsToDisk u
       pure u
     )
@@ -58,10 +58,10 @@ getHueCredentials = do
 -- 
 -- This function waits until the user pushes the bridge button
 -- and registers with the current hostname as device name.
-registerApp :: MaybeT Hue HueCredentials
+registerApp :: Hue HueCredentials
 registerApp = do
   liftIO $ putStrLn "Push the button on your bridge..."
-  lift $ untilJust $ do 
+  untilJust $ do 
     liftIO $ threadDelay 1000000
     tryRegisterWithBridge
   
@@ -87,13 +87,13 @@ getHueDir = do
   createDirIfMissing False hueDir
   pure hueDir
 
--- | Get the file path where the Hue access token is stored
+-- | Get the file path where the Hue access token is stored.
 getHueCredentialsPath :: MonadIO m => m (Path Abs File)
 getHueCredentialsPath = do
   hueDir <- getHueDir
   liftIO $ resolveFile hueDir "credentials"
 
--- Fetch the Hue access token from disk
+-- | Fetch the Hue access token from disk.
 fetchCredentialsFromDisk :: (MonadIO m, MonadPlus m) => m HueCredentials
 fetchCredentialsFromDisk = do
   usernamePath <- getHueCredentialsPath
@@ -102,7 +102,7 @@ fetchCredentialsFromDisk = do
   guard $ (not . Text.null $ hueCredentials)
   pure $ HueCredentials (strip hueCredentials)
 
--- Write a newly obtained access token to disk.
+-- | Write a newly obtained access token to disk.
 -- This will overwrite any content in the credentials file.
 writeCredentialsToDisk :: MonadIO m => HueCredentials -> m ()
 writeCredentialsToDisk (HueCredentials u) = do

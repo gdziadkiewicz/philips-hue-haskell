@@ -9,17 +9,16 @@
 module Hue (
 -- * How to use this library
 -- $usage
--- Running Hue actions
--- $evaluating 
   request
+-- * Running Hue actions
+-- $evaluating
 , runHue
 , evalHue
 -- * Configuration
--- $config 
+, HueConfig(..)
+, configWithIP
 , HueCredentials
 , BridgeIP(..)
-, configWithIP
-, HueConfig(..)
 -- * The Hue monad
 , Hue(..)
 -- * Response and Error representations
@@ -35,51 +34,22 @@ import Hue.Request
 import Hue.Auth (getHueCredentials)
 
 -- $usage
--- This library mainly revolves around one function: 'request'. 
---
--- This function needs to be supplied with a 'Request'.
--- Requests can be found in the module that they functionally belong to.
--- There are requests for authentication, fetching and changing lights and mode.
--- For example see 'lights' in "Hue.Light". 
--- The result of calling 'request' depends on the type  of the supplied 'Request'. 
--- There are two possible return types for 'request':
+-- There are two ways in which you can use this library:
 -- 
---  * If the body type is '()', request immediately results in a Hue action.
+--  * Use pre-defined actions of type @('Hue' a)@, e.g.: 'fetchLights',
 -- 
---    >>> let someRequest = ... :: Request () SomeResult
---    >>> :t request someRequest
---    request someRequest :: Hue SomeResult
+--  * Call an endpoint with 'request' to construct your own 'Hue' actions.
 -- 
---  * Otherwise, 'request' will instead return a function asking for the body:
--- 
---    >>> let someRequest = ... :: Request Int SomeResult
---    >>> :t request someRequest
---    request someRequest :: Int -> Hue SomeResult
--- 
--- This makes 'request' type safe with respect to the request body and result.
--- See "Hue.Request" for more details.
+-- See 'runHue' and 'evalHue' for details on evaluating the actions in @IO@.
 
 -- $evaluating
--- Any value of type @'Hue' a@ can be evaluated in IO with 'runHue' or 'evalHue'
--- 
--- In order to run an action with 'evalHue', you must have a valid 'HueConfig' object.
--- 'configWithIP' defines a HueConfig for accessing unauthenticated endpoints.
--- 
--- The config object contains the bridge IP address and (optionally) credentials
--- needed to turn lights on and off.
--- To get a HueConfig with credentials, can use the functions from "Hue.Auth".
--- For example, if you wish to do pushlink authentication, use 'registerApp'.
--- 'getHueCredentials' will use 'registerApp' once and store the credentials for
--- subsequent uses.
--- 
--- $config
--- All types needed to configure requests to the Hue bridge.
-
+-- Any value of type @('Hue' a)@ can be evaluated in IO with 'runHue' or 'evalHue':
 
 -- | Evaluates a Hue action.
 -- 
 -- Fetches credentials from file if present,
 -- otherwise performs pushlink registration.
+-- Requires only the bridge IP since the credentials are fetched for you.
 runHue :: MonadIO m 
        => BridgeIP -- ^ The bridge IP address
        -> Hue a -- ^ The action to evaluate 
@@ -88,3 +58,8 @@ runHue ip h = do
   let conf = configWithIP ip
   creds <- evalHue conf getHueCredentials
   evalHue (conf { configCredentials = creds }) h
+
+x :: IO ()
+x = runHue "192.168.1.100" $ do
+  ls <- fetchLights
+  void $ traverse (`request` on) (setLight <$> ls)
