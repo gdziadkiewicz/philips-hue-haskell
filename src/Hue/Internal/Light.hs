@@ -39,8 +39,8 @@ import Hue.Internal.Request
 -- key of the Map is the light ID.
 -- 
 -- To fetch all lights with their ID, use 'fetchLights'.
-lights :: Request () (Map LightID (Light 'WithoutID))
-lights = get $ api /~ credentials /: "lights"
+lights :: Request (Map LightID (Light 'WithoutID))
+lights = get ParseResult $ api /~ credentials /: "lights"
 
 -- | Fetch a single light by it's name.
 -- 
@@ -78,8 +78,8 @@ fetchLights = fmap (uncurry setLightID) <$> Map.toList <$> request lights
 --    request (setLight l) (on <> brightness 255 <> setHue 48500 <> saturation 255)
 -- @
 --
-setLight :: Light 'WithID -> Request SetLightState ()
-setLight Light{..} = put $ api /~ credentials /: "lights" /~ lightId /: "state"
+setLight :: SetLightState -> Light 'WithID -> Request ()
+setLight newState Light{..} = put (Body newState) IgnoreResult $ api /~ credentials /: "lights" /~ lightId /: "state"
 
 -- | Turn the light on.
 on :: SetLightState
@@ -204,8 +204,8 @@ noEffect = mkSetLightState $ SetEffect NoEffect
 -- 
 -- A light can have its name changed even when it is unreachable 
 -- or turned off.
-renameLight :: Light 'WithID -> Request LightName ()
-renameLight Light{..} = put $ api /~ credentials /: "lights" /~ lightId
+renameLight :: Light 'WithID -> LightName -> Request ()
+renameLight Light{..} name = put (Body name) IgnoreResult $ api /~ credentials /: "lights" /~ lightId
 
 -- | Request for deleting a light.
 -- 
@@ -214,8 +214,8 @@ renameLight Light{..} = put $ api /~ credentials /: "lights" /~ lightId
 -- 
 -- Note that the device is not physically removed from the ZigBee
 -- network.
-deleteLight :: Light 'WithID -> Request () ()
-deleteLight Light{..} = delete $ api /~ credentials /: "lights" /~ lightId
+deleteLight :: Light 'WithID -> Request ()
+deleteLight Light{..} = delete IgnoreResult $ api /~ credentials /: "lights" /~ lightId
 
 
 -- ----------------------------------------------------------------
@@ -239,15 +239,15 @@ deleteLight Light{..} = delete $ api /~ credentials /: "lights" /~ lightId
 -- 
 -- Group 0 is a special group that cannot be 
 -- deleted and will always contain all lights known by the bridge.
-searchNewLights ::  Request () ()
-searchNewLights = post $ api /~ credentials /: "lights"
+searchNewLights ::  Request ()
+searchNewLights = post NoBody IgnoreResult $ api /~ credentials /: "lights"
 
 -- | Gets a 'ScanResult' since the last time 'searchNewLights'
 -- was requested.
 -- 
 -- The returned scan results are reset when a new scan is started.
-newLights :: Request () ScanResult
-newLights = get $ api /~ credentials /: "lights" /: "new"
+newLights :: Request ScanResult
+newLights = get ParseResult $ api /~ credentials /: "lights" /: "new"
 
 
 -- ----------------------------------------------------------------

@@ -7,22 +7,36 @@
 --
 -- Types to build representations for Hue API requests. 
 module Hue.Request (
+-- * Constructing requests
   Request
 , get
 , post
 , put
 , delete
+-- * Adding a body to the Request
+, Body
+, body
+, noBody
+-- * Indicating the result type of a Request
+, Result
+, ignoreResult
+, parseResult
+-- * Constructing the API path
 , RequestPath
 , api
 , root 
 , (/:)
 , (/~)
-, requestPath
-, requestMethod
+-- ** Adding custom data to the request path
 , PathSegment
 , credentials
 , ToPathSegment
 , toSegment
+-- * Inspecting a Request
+, requestPath
+, requestMethod
+, requestResult
+, withRequestBody
 ) where 
   
 import Hue.Internal.Request

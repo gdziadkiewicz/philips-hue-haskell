@@ -25,6 +25,7 @@ module Hue (
 , HueSuccess(..)
 , HueApiException(..)
 , HueError(..)
+, x
 ) where
 
 import Control.Monad.Except
@@ -61,5 +62,5 @@ runHue ip h = do
 
 x :: IO ()
 x = runHue "192.168.1.100" $ do
-  ls <- fetchLights
-  void $ traverse (`request` on) (setLight <$> ls)
+  Just l <- lightWithName "Ufo"
+  void $ request $ setLight on l

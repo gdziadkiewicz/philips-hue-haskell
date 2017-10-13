@@ -6,11 +6,13 @@
 -- Stability: experimental
 --
 -- Types to build representations for Hue API requests. 
+{-# LANGUAGE GADTs, RankNTypes #-}
 module Hue.Internal.Request (
   module Hue.Internal.Request
 , module MethodTypes
 ) where
 
+import Data.Aeson hiding (Result(..))
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.ByteString (ByteString)
@@ -37,10 +39,16 @@ import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
 -- 
 --  * a request method ('get', 'post', 'put', or 'delete')
 -- 
+--  * a 'Body'
+-- 
+--  * an indicator for what to do with the response. See 'Response'.
+-- 
 --  * a 'RequestPath'
 -- 
 -- The 'RequestPath' can be built by appending an 'PathSegment' to an existing 
 -- RequestPath with either '/:' or '/~'.
+-- 
+-- If you do not care about the data returned from the endpoint, you should use 'IgnoreResponse'.
 -- 
 -- Each request must have a type annotation specifying the request body and
 -- return type. '()' can be used for empty request body and response types.
@@ -48,26 +56,57 @@ import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
 -- Example:
 -- 
 -- @
--- lightsRequest :: Request () [Lights]
--- lightsRequest = get $ api \/~ credentials /: "lights"
+-- lightsRequest :: Request [Lights]
+-- lightsRequest = get ParseResult $ api \/~ credentials /: "lights"
 -- @
-data Request body result = Request StdMethod RequestPath
+data Request r where
+  Request :: StdMethod -> Body b -> Result r -> RequestPath -> Request r
+
+-- | Indicator for the body of a request.
+data Body b where
+  -- | Send a request with an empty body.
+  NoBody :: Body ()
+  -- | Send b as JSON body.
+  Body :: ToJSON b => b -> Body b
+
+-- | Send a request with an empty body.
+noBody :: Body ()
+noBody = NoBody
+
+-- | Send 'a' as JSON body.
+body :: ToJSON a => a -> Body a
+body = Body
+
+-- | Indicator for what to do with the data that comes back from a request.
+data Result r where
+  -- | Ignore the result. The response body only be checked for errors.
+  IgnoreResult :: Result ()
+  -- | Parse the response body as JSON.
+  ParseResult :: FromJSON r => Result r
+
+-- | Ignore the result. The response body only be checked for errors.
+ignoreResult :: Result ()
+ignoreResult = IgnoreResult
+
+-- | Parse the response body as JSON.
+parseResult :: FromJSON a => Result a
+parseResult = ParseResult
 
 -- | Make a GET request
-get :: RequestPath -> Request () result
-get = Request GET
+get :: Result result -> RequestPath -> Request result
+get = Request GET NoBody
 
 -- | Make a POST request
-post :: RequestPath -> Request body result
+post :: Body body -> Result result -> RequestPath -> Request result
 post = Request POST
 
 -- | Make a PUT request
-put :: RequestPath -> Request body result
+put :: Body body -> Result result -> RequestPath -> Request result
 put = Request PUT
 
 -- | Make a DELETE request
-delete :: RequestPath -> Request () result
-delete = Request DELETE
+delete :: Result result -> RequestPath -> Request result
+delete = Request DELETE NoBody
 
 -- | Identifies the endpoint path for a 'Request'.
 data RequestPath = RequestPath [PathSegment]
@@ -111,10 +150,10 @@ RequestPath prev /~ segment = RequestPath (toSegment segment:prev)
 -- | Return the path that the request currently represents.
 -- 
 -- URL-encodes each segment.
-requestPath :: Request x y
-             -> Text
+requestPath :: Request a 
+             -> Text -- ^ Credentials needed to query most endpoints.
              -> ByteString
-requestPath (Request _ (RequestPath segments)) creds
+requestPath (Request _ _ _ (RequestPath segments)) creds
   = toByteString 
   $ encodePathSegments 
   $ segmentToText creds
@@ -124,9 +163,18 @@ requestPath (Request _ (RequestPath segments)) creds
     segmentToText c CredentialsSegment = c
 
 -- | Get the method of a 'Request' as a ByteString.
-requestMethod :: Request x y -> ByteString
-requestMethod (Request m _) = fromString $ show m
-  
+requestMethod :: Request a -> ByteString
+requestMethod (Request m _ _ _) = fromString $ show m
+
+-- | Perform a computation based on the body of a request.
+-- Since the body type is existential, you'll need to provide a function that's polymorphic in 'b'.
+withRequestBody :: Request a -> (forall b. Body b -> x) -> x
+withRequestBody (Request _ b _ _) f = f b
+
+-- | Get how a response for this request is handled.
+requestResult :: Request a -> Result a
+requestResult (Request _ _ r _) = r
+
 -- | Class for all things that can be turned into a PathSegment.
 -- Anything that has a 'Text'ual representation could have an instance.
 -- When implementing an instance of this class, you should probably first 

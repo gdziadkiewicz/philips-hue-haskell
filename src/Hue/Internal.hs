@@ -24,9 +24,6 @@ import Data.Text (Text, append)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
 
-import Data.Singletons
-import Data.Singletons.Prelude.Bool
-
 import Control.Applicative
 import Control.Exception hiding (TypeError)
 import Control.Monad.Except
@@ -45,7 +42,7 @@ newtype Hue a = Hue {
   , MonadReader HueConfig
   , MonadError HueApiException)
 
--- | Evaluate a hue action with a specific config
+-- | Evaluate a hue action with a specific config.
 evalHue :: MonadIO m => HueConfig -> Hue a -> m a
 evalHue config h = do
   e <- unwrapHue config h
@@ -58,46 +55,22 @@ evalHue config h = do
 
 -- | Send a request to the bridge.
 -- 
--- This function gives you the opportunity to talk directly to any bridge endpoint,
+-- This function gives you the opportunity to talk directly to any bridge endpoint
 -- and provide or get data in your own types.
 -- In some cases however, calling the API directly can be cumbersome or too low level
 -- and it might be easier to use one of the pre-defined 'Hue' actions.
 -- 
--- The result of calling this function depends on the type  of the supplied 'Request'. 
--- There are two possible return types:
--- 
---  * If the body type is @()@, request immediately results in a Hue action:
--- 
---    >>> let someRequest = ... :: Request () SomeResult
---    >>> :t request someRequest
---    request someRequest :: Hue SomeResult
--- 
---  * Otherwise, 'request' will instead return a function asking for the body:
--- 
---    >>> let someRequest = ... :: Request Int SomeResult
---    >>> :t request someRequest
---    request someRequest :: Int -> Hue SomeResult
--- 
--- This makes 'request' type safe with respect to the request body and result.
--- See "Hue.Request" for more details.
-request :: forall body resp. 
-        ( ToJSON body
-        , FromJSON resp
-        , SingI (IsUnit body)
-        , SingI (IsUnit resp)
-        )
-        => Request body resp -- ^ The API request to send the request to
-        -> HueFn body resp
-request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
-    -- Both the body and the result are (), so parse the response as Unit and discard it
-    (STrue, STrue) -> void $ mkRequest >>= (performRequest :: HTTP.Request -> Hue Unit)
-    -- Only the body is (), so parse the response and return it 
-    (STrue, SFalse) -> mkRequest >>= performRequest
-    -- Only the response type is (), create a function that asks for the body and discard the result
-    (SFalse, STrue) -> \b -> void $ setRequestBodyJSON b <$> mkRequest >>= (performRequest :: HTTP.Request -> Hue Unit)
-    -- Both are not (), create a function that asks for the body and return the result directly
-    (SFalse, SFalse) -> \b -> setRequestBodyJSON b <$> mkRequest >>= performRequest
-  where 
+-- Pre-defined requests can be found in the module that they functionally belong to, for 
+-- example see 'lights' in "Hue.Light".
+request :: Request a -> Hue a
+request r = case requestResult r of
+  IgnoreResult -> do
+    _ :: [HueSuccess Value] <- mkRequest >>= performRequest
+    pure ()
+  ParseResult -> mkRequest >>= performRequest
+
+  where
+
     mkRequest :: Hue HTTP.Request
     mkRequest = do
       path <- requestPath r . unCredentials . configCredentials <$> ask
@@ -106,7 +79,9 @@ request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
         $ setRequestPath path
         $ setRequestMethod (requestMethod r)
         $ setRequestHost ip
-        $ defaultRequest
+        $ withRequestBody r $ \case
+          (Body b) -> setRequestBodyJSON b defaultRequest
+          _        -> defaultRequest
 
     performRequest :: FromJSON a
                    => HTTP.Request
@@ -128,24 +103,6 @@ request r = case (sing :: Sing (IsUnit body), sing :: Sing (IsUnit resp)) of
           `append` Text.pack err
           `append` "\nAttempted to parse response:\n\t"
           `append` decodeUtf8 responseText
-
--- | Determine the return type of the 'request' function.
-type HueFn b r = HueRequestType (IsUnit b) b (HueResponseType (IsUnit r) r)
-
--- | If 'request' is called with @()@ as response, then the result is @Hue ()@
-type family HueResponseType isRespUnit r where
-  HueResponseType 'True r = Hue ()
-  HueResponseType 'False r = Hue r
-
--- | If 'request' is called with @()@ as body, then the result is @body -> Hue a@
-type family HueRequestType isBodyUnit body r where
-  HueRequestType 'True b r = r
-  HueRequestType 'False b r = b -> r
-
--- | Determine at the type level whether a type is @()@ or not.
-type family IsUnit a where
-  IsUnit () = 'True
-  IsUnit a = 'False
 
 -- ----------------------------------------------------------------
 -- BASE TYPES
@@ -183,6 +140,7 @@ newtype HueCredentials = HueCredentials {
   unCredentials :: Text
 } deriving (Show)
 
+-- | We're able to receive credentials from the bridge.
 instance FromJSON HueCredentials where
   parseJSON v = do
     [HueSuccess c] <- parseJSON v
@@ -195,6 +153,7 @@ instance ToPathSegment HueCredentials where
 -- | Device type used when registering a new application with the bridge.
 newtype HueDeviceType = HueDeviceType Text deriving (Show)
 
+-- | We're able to send a device type to the brige for registration.
 instance ToJSON HueDeviceType where
   toJSON (HueDeviceType devType) = toJSON $ Map.fromList [("devicetype" :: Text, devType)]  
 
@@ -204,20 +163,13 @@ instance ToJSON HueDeviceType where
 --   Hue API response representation
 -- ----------------------------------------------------------------
 
--- | Specific unit type to make Aeson parse () as an object.
-data Unit = Unit deriving (Show)
-
-instance FromJSON Unit where 
-  parseJSON v = do
-    _ :: [HueSuccess Value] <- parseJSON v
-    pure Unit
-
 -- | Representation for all responses from the bridge.
 data HueResponse a = 
     HueErrorResponse [HueError]
   | HueResponse a 
   deriving (Show)
 
+-- | Any response from the bridge can be decoded.
 instance (FromJSON a) => FromJSON (HueResponse a) where
   parseJSON v = (HueErrorResponse <$> parseHueErrors v) <|> (HueResponse <$> parseJSON v)
     where
@@ -231,6 +183,7 @@ instance (FromJSON a) => FromJSON (HueResponse a) where
 -- E.g. most endpoints that set/update some data.
 data HueSuccess a = HueSuccess a deriving (Show)
 
+-- | Success messages can be decoded.
 instance (FromJSON a) => FromJSON (HueSuccess a) where
   parseJSON = withObject "HueSuccess object" $ \o -> do
     s <- o .: "success"
@@ -239,6 +192,7 @@ instance (FromJSON a) => FromJSON (HueSuccess a) where
 -- | Errors returned by the bridge.
 data HueError = HueError Int Text deriving (Show)
 
+-- | Error responses can be decoded.
 instance FromJSON HueError where 
   parseJSON = withObject "HueError object" $ \o -> do
     e <- o .: "error"
@@ -247,9 +201,11 @@ instance FromJSON HueError where
 -- | Wrapper for errors returned by the bridge.
 data HueApiException = HueApiException [HueError] deriving (Show)
 
+-- | We might throw HueApiException.
 instance Exception HueApiException
 
 -- | When the bridge response cannot be parsed...
 newtype JSONParseException = JSONParseException Text deriving (Show)
 
+-- | We might throw JSONParseException.
 instance Exception JSONParseException
