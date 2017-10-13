@@ -13,6 +13,7 @@ module Hue.Request (
 , post
 , put
 , delete
+, mkRequest
 -- * Adding a body to the Request
 , Body
 , body

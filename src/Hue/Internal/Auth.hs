@@ -5,8 +5,12 @@
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
--- Everything needed to authenticate with the Hue Bridge,
+-- Everything needed to authenticate with the Hue Bridge
 -- and store the credentials.
+-- 
+-- This is an internal module.
+-- 
+-- Please use "Hue.Auth" instead. 
 module Hue.Internal.Auth where
   
 import Network.HostName (getHostName)

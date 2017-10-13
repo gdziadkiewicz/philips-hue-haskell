@@ -7,6 +7,10 @@
 -- Stability: experimental
 --
 -- Base functions and types to perform requests against the Hue bridge.
+-- 
+-- This is an internal module.
+-- 
+-- Please use "Hue" instead. 
 module Hue.Internal where
 
 import Network.HTTP.Simple hiding (JSONParseException, Proxy, Request)

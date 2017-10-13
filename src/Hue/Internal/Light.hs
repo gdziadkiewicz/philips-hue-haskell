@@ -6,7 +6,11 @@
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
--- Types representing commands to change the state of a light.
+-- Types representing commands to change the state of a light.]
+-- 
+-- This is an internal module.
+-- 
+-- Please use "Hue.Light" instead. 
 module Hue.Internal.Light where
 
 import Prelude hiding (fail)

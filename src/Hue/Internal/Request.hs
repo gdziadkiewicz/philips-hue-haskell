@@ -6,6 +6,10 @@
 -- Stability: experimental
 --
 -- Types to build representations for Hue API requests. 
+-- 
+-- This is an internal module.
+-- 
+-- Please use "Hue.Request" instead. 
 {-# LANGUAGE GADTs, RankNTypes #-}
 module Hue.Internal.Request (
   module Hue.Internal.Request
@@ -41,7 +45,7 @@ import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
 -- 
 --  * a 'Body'
 -- 
---  * an indicator for what to do with the response. See 'Response'.
+--  * an indicator for what to do with the response. See 'Result'.
 -- 
 --  * a 'RequestPath'
 -- 
@@ -94,19 +98,23 @@ parseResult = ParseResult
 
 -- | Make a GET request
 get :: Result result -> RequestPath -> Request result
-get = Request GET NoBody
+get = mkRequest GET NoBody
 
 -- | Make a POST request
 post :: Body body -> Result result -> RequestPath -> Request result
-post = Request POST
+post = mkRequest POST
 
 -- | Make a PUT request
 put :: Body body -> Result result -> RequestPath -> Request result
-put = Request PUT
+put = mkRequest PUT
 
 -- | Make a DELETE request
 delete :: Result result -> RequestPath -> Request result
-delete = Request DELETE NoBody
+delete = mkRequest DELETE NoBody
+
+-- | Construct a request for any HTTP method, body and result.
+mkRequest :: StdMethod -> Body b -> Result r -> RequestPath -> Request r
+mkRequest = Request
 
 -- | Identifies the endpoint path for a 'Request'.
 data RequestPath = RequestPath [PathSegment]
