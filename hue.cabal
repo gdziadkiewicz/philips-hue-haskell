@@ -24,10 +24,12 @@ library
                      , Hue.Light
                      , Hue.Auth
                      , Hue.Request
+                     , Hue.Discover
                      , Hue.Internal
                      , Hue.Internal.Light
                      , Hue.Internal.Auth
                      , Hue.Internal.Request
+                     , Hue.Internal.Discover
   build-depends:       base >= 4.7 && < 5
                      , http-client >= 0.5 && < 0.6
                      , http-conduit >= 2.2 && < 2.3
@@ -46,7 +48,10 @@ library
                      , transformers >= 0.5 && < 0.6
                      , path >= 0.5 && < 0.6
                      , path-io >= 1.2 && < 1.3
-                     , singletons
+                     , network >= 2.6 && < 2.7
+                     , network-uri >= 2.6 && < 2.7
+                     , time >= 1.6 && < 1.7
+                     , hexml >= 0.3 && < 0.4
   default-extensions:  ScopedTypeVariables
                      , OverloadedStrings
                      , RecordWildCards

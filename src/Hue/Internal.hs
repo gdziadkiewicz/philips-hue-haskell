@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstraintKinds, TypeFamilies, GADTs, UndecidableInstances, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ConstraintKinds, TypeFamilies, GADTs, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 -- |
 -- Module: Hue.Internal 
 -- Copyright: (c) 2017 Thomas Smith
@@ -132,7 +132,19 @@ data HueConfig = HueConfig {
 -- | The IP address of the bridge to send requests to.
 newtype BridgeIP = BridgeIP {
   ipAddress :: ByteString
+} deriving (Show, Eq, Ord)
+
+-- | Identifies a bridge uniquely.
+data Bridge = Bridge {
+    bridgeIP :: BridgeIP
+  , bridgeSerial :: Text
+  , bridgeIconURL :: Text
 } deriving (Show)
+
+instance Eq Bridge where
+  b1 == b2 = bridgeSerial b1 == bridgeSerial b2
+
+deriving instance Ord Bridge
 
 -- | BridgeIP can be created from String literals/
 instance IsString BridgeIP where
