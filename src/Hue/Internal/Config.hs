@@ -88,7 +88,6 @@ fetchConfigFromDisk = do
   configPath <- getHueConfigPath
   doesFileExist configPath >>= guard
   rawConfig <- liftIO $ readFile $ toFilePath configPath
-  let q :: Maybe HueConfig = decodeStrict $ toStrict rawConfig
   MaybeT $ pure $ decodeStrict $ toStrict rawConfig
 
 -- | Write a configuration to disk.

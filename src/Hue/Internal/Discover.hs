@@ -60,7 +60,7 @@ upnpDiscoverBridges :: IO [Bridge]
 upnpDiscoverBridges = do
   addr:_ <- getAddrInfo (Just addrHints) (Just "239.255.255.250") (Just "1900")
   sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-  sendTo sock ssdpDiscoverRequest (addrAddress addr)
+  _ <- sendTo sock ssdpDiscoverRequest (addrAddress addr)
   hSock <- socketToHandle sock ReadMode
   startTime <- getCurrentTime
   bridgLocations <- Set.toList <$> receiveBridgeLocation startTime hSock
