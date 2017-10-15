@@ -22,11 +22,13 @@ library
   default-language:    Haskell2010
   exposed-modules:     Hue
                      , Hue.Light
+                     , Hue.Config
                      , Hue.Auth
                      , Hue.Request
                      , Hue.Discover
                      , Hue.Internal
                      , Hue.Internal.Light
+                     , Hue.Internal.Config
                      , Hue.Internal.Auth
                      , Hue.Internal.Request
                      , Hue.Internal.Discover
@@ -52,6 +54,7 @@ library
                      , network-uri >= 2.6 && < 2.7
                      , time >= 1.6 && < 1.7
                      , hexml >= 0.3 && < 0.4
+                     , safe-exceptions >= 0.1 && < 0.2
   default-extensions:  ScopedTypeVariables
                      , OverloadedStrings
                      , RecordWildCards

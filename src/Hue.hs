@@ -15,8 +15,8 @@ module Hue (
 , runHue
 , evalHue
 -- * Configuration
+-- $conf
 , HueConfig(..)
-, configWithIP
 , HueCredentials
 , BridgeIP(..)
 -- * The Hue monad
@@ -32,7 +32,7 @@ import Control.Monad.Except
 import Hue.Internal
 import Hue.Light
 import Hue.Request
-import Hue.Auth (getHueCredentials)
+import Hue.Config
 
 -- $usage
 -- There are two ways in which you can use this library:
@@ -48,19 +48,20 @@ import Hue.Auth (getHueCredentials)
 
 -- | Evaluates a Hue action.
 -- 
--- Fetches credentials from file if present,
--- otherwise performs pushlink registration.
--- Requires only the bridge IP since the credentials are fetched for you.
+-- Fetches config from file if present,
+-- otherwise performs interactive bridge discovery and registration.
 runHue :: MonadIO m 
-       => BridgeIP -- ^ The bridge IP address
-       -> Hue a -- ^ The action to evaluate 
+       => Hue a -- ^ The action to evaluate 
        -> m a
-runHue ip h = do
-  let conf = configWithIP ip
-  creds <- evalHue conf getHueCredentials
-  evalHue (conf { configCredentials = creds }) h
+runHue h = do
+  conf <- liftIO $ getHueConfig
+  evalHue conf h
 
 x :: IO ()
-x = runHue "192.168.1.100" $ do
+x = runHue $ do
   Just l <- lightWithName "Ufo"
   void $ request $ setLight on l
+
+-- $conf
+-- These are all data types necessary for constructing a configuration.
+-- See "Hue.Config" for automatically obtaining a HueConfig.

@@ -13,6 +13,8 @@
 -- Please use "Hue" instead. 
 module Hue.Internal where
 
+import Prelude hiding (putStrLn)
+
 import Network.HTTP.Simple hiding (JSONParseException, Proxy, Request)
 import qualified Network.HTTP.Simple as HTTP
 import Data.Aeson
@@ -22,14 +24,14 @@ import qualified Data.Vector as V
 
 import Data.String
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as LBS
+import Data.ByteString.Lazy (toStrict)
 
 import Data.Text (Text, append)
 import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 
 import Control.Applicative
-import Control.Exception hiding (TypeError)
+import Control.Exception.Safe
 import Control.Monad.Except
 import Control.Monad.Reader
 
@@ -92,9 +94,9 @@ request r = case requestResult r of
                    -> Hue a
     performRequest req = do
       response <- liftIO $ httpLBS req
-      let responseText = getResponseBody response
-      case eitherDecode responseText of 
-        Left err -> throwParseError err (LBS.toStrict responseText)
+      let responseText = toStrict $ getResponseBody response
+      case eitherDecodeStrict' responseText of 
+        Left err -> throwParseError err responseText
         Right (HueErrorResponse err) -> throwError $ HueApiException err
         Right (HueResponse a) -> pure a
 
@@ -102,7 +104,7 @@ request r = case requestResult r of
                     -> ByteString 
                     -> Hue a
     throwParseError err responseText = 
-      liftIO $ throwIO $ Hue.Internal.JSONParseException $
+      liftIO $ throw $ Hue.Internal.JSONParseException $
           "Error parsing bridge response: \n\t"
           `append` Text.pack err
           `append` "\nAttempted to parse response:\n\t"
@@ -113,27 +115,43 @@ request r = case requestResult r of
 --   Authentication
 -- ----------------------------------------------------------------
 
--- | Create a HueConfig with an explicit bridge IP address. 
--- 
--- Credentials will be set to a default that can only be used against unauthenticated resources.
--- 
--- To get a HueConfig with credentials, can use the functions from "Hue.Auth".
-configWithIP :: BridgeIP -> HueConfig
-configWithIP ip = HueConfig ip (HueCredentials "-")
-
 -- | Configuration necessary to query the bridge.
 -- 
 -- Contains the bridge IP address and (optionally) credentials needed to turn lights on and off.
+-- 
+-- See "Hue.Config"
 data HueConfig = HueConfig {
   configIP :: BridgeIP
 , configCredentials :: HueCredentials
 } deriving (Show)
+
+-- | Used to read config from file.
+instance FromJSON HueConfig where
+  parseJSON = withObject "HueConfig object" $ \o -> 
+    HueConfig 
+    <$> o .: "bridge-ip-address" 
+    <*> (HueCredentials <$> o .: "app-credentials")
+
+-- | Used to write the config to file.
+instance ToJSON HueConfig where
+  toJSON (HueConfig ip creds) = object 
+    [ ("bridge-ip-address", toJSON ip)
+    , ("app-credentials", toJSON creds)
+    ]
 
 -- | The IP address of the bridge to send requests to.
 newtype BridgeIP = BridgeIP {
   ipAddress :: ByteString
 } deriving (Show, Eq, Ord)
 
+-- | Used to read the bridge IP from a config file
+instance FromJSON BridgeIP where
+  parseJSON = withText "Bridge IP address" $ pure . BridgeIP . encodeUtf8
+
+-- | Used to read the bridge IP to a config file
+instance ToJSON BridgeIP where
+  toJSON (BridgeIP ip) = String $ decodeUtf8 ip
+  
 -- | Identifies a bridge uniquely.
 data Bridge = Bridge {
     bridgeIP :: BridgeIP
@@ -161,6 +179,10 @@ instance FromJSON HueCredentials where
   parseJSON v = do
     [HueSuccess c] <- parseJSON v
     withObject "HueCredentials object" (\o -> HueCredentials <$> o .: "username") c
+
+-- | Used to write credentials to a config file.
+instance ToJSON HueCredentials where
+  toJSON (HueCredentials c) = String c
 
 -- | Credentials can be used as part of an API path.
 instance ToPathSegment HueCredentials where
@@ -215,13 +237,13 @@ instance FromJSON HueError where
     HueError <$> e .: "type" <*> e .: "description"
 
 -- | Wrapper for errors returned by the bridge.
-data HueApiException = HueApiException [HueError] deriving (Show)
+data HueApiException = HueApiException [HueError] deriving (Show, Typeable)
 
 -- | We might throw HueApiException.
 instance Exception HueApiException
 
 -- | When the bridge response cannot be parsed...
-newtype JSONParseException = JSONParseException Text deriving (Show)
+newtype JSONParseException = JSONParseException Text deriving (Show, Typeable)
 
 -- | We might throw JSONParseException.
 instance Exception JSONParseException

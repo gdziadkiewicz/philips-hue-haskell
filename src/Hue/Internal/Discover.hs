@@ -1,4 +1,3 @@
--- {-# LANGUAGE  #-}
 -- |
 -- Module: Hue.Internal.Discover
 -- Copyright: (c) 2017 Thomas Smith
@@ -11,7 +10,11 @@
 -- This is an internal module.
 -- 
 -- Please use "Hue.Discover" instead. 
-module Hue.Internal.Discover where
+module Hue.Internal.Discover (
+    upnpDiscoverBridges
+  , XMLParseException(..)
+  , parseDescriptionXML
+) where
 
 import Prelude hiding (putStr, putStrLn)
 import Network.Socket hiding (send, sendTo, recv)
@@ -27,6 +30,7 @@ import Data.Time.Clock
 import Data.Typeable
 import Data.Maybe
 import Data.Monoid
+import Data.Bifunctor
 import Data.String
 
 import qualified Data.Map.Strict as Map
@@ -43,21 +47,9 @@ import Data.ByteString.Lazy (toStrict)
 import qualified Data.ByteString.Char8 as BS
 
 import Control.Concurrent (threadDelay)
-import Control.Exception
+import Control.Exception.Safe
 
 import Hue.Internal
-
--- | Identifies the network location of a bridge.
--- This data is directly constructed from a SSDP response.
-data BridgeLocation = BridgeLocation {
-    getBridgeID :: Text
-  , getBridgeLocation :: URI
-} deriving (Show, Eq, Ord)
-
--- | Parsing a bridge @description.xml@ might throw an exception.
-data XMLParseException = XMLParseException ByteString deriving (Show, Typeable)
-
-instance Exception XMLParseException
 
 -- | Discover bridges on the local network via UPnP / SSDP.
 -- Listens for 5 seconds for any responses.
@@ -80,7 +72,7 @@ upnpDiscoverBridges = do
     fetchBridge BridgeLocation{..} = do
       response <- httpLBS httpReq
       let bridge = parseDescriptionXML $ toStrict $ getResponseBody response
-      either throwIO pure bridge 
+      either throw pure bridge 
 
       where
         Just host = uriRegName <$> uriAuthority getBridgeLocation
@@ -88,34 +80,6 @@ upnpDiscoverBridges = do
                 $ setRequestPath (fromString $ uriPath getBridgeLocation) 
                 $ defaultRequest
           
-    parseDescriptionXML :: ByteString -> Either XMLParseException Bridge
-    parseDescriptionXML str = maybe 
-        (Left $ XMLParseException 
-                "Error parsing Bridge description.xml:\n\
-                \Expected 'URLBase', 'serialNumber' and at least one icon url.")
-        Right (Bridge <$> (BridgeIP <$> bridgeIP) <*> serialNumber <*> iconURL)    
-      
-      where
-        rootNode = head . (`XML.childrenBy` "root")
-                 $ either (throw . XMLParseException) id (XML.parse str)
-
-        bridgeIP = listToMaybe (XML.childrenBy rootNode "URLBase")
-          >>= parseURI . BS.unpack . XML.inner
-          >>= uriAuthority
-          >>= pure . fromString . uriRegName
-
-        serialNumber = listToMaybe $
-          XML.childrenBy rootNode "device"
-          >>= (`XML.childrenBy` "serialNumber")
-          >>= pure . decodeUtf8 . XML.inner
-
-        iconURL = listToMaybe $ 
-          XML.childrenBy rootNode "device"
-          >>= (`XML.childrenBy` "iconList")
-          >>= (`XML.childrenBy` "icon")
-          >>= (`XML.childrenBy` "url")
-          >>= pure . decodeUtf8 . XML.inner
-     
     receiveBridgeLocation :: UTCTime -> Handle -> IO (Set BridgeLocation)
     receiveBridgeLocation startTime hSock = do 
       now <- getCurrentTime
@@ -153,3 +117,49 @@ upnpDiscoverBridges = do
       , addrProtocol = udpProtocolNumber }
 
     udpProtocolNumber = 17
+
+-- | Identifies the network location of a bridge.
+-- This data is directly constructed from a SSDP response.
+data BridgeLocation = BridgeLocation {
+  getBridgeID :: Text
+, getBridgeLocation :: URI
+} deriving (Show, Eq, Ord)
+
+-- | Parsing a bridge @description.xml@ might throw an exception.
+data XMLParseException = XMLParseException ByteString deriving (Show, Typeable)
+
+instance Exception XMLParseException
+
+-- | Parse the contents of a bridges' @description.xml@.
+parseDescriptionXML :: ByteString -> Either XMLParseException Bridge
+parseDescriptionXML str = do
+  root <- first XMLParseException (XML.parse str) >>= findChild "root"
+
+  bridgeIP <- findChild "URLBase" root
+    >>= onExcept "Invalid bridge URL" . parseURI . BS.unpack . XML.inner
+    >>= onExcept "Invalid bridge URL" . uriAuthority
+    >>= pure . fromString . uriRegName
+
+  serialNumber <- findChild "device" root
+    >>= findChild "serialNumber"
+    >>= pure . decodeUtf8 . XML.inner 
+
+  iconURL <- findChild "device" root
+    >>= findChild "iconList"
+    >>= findChild "icon"
+    >>= findChild "url"
+    >>= pure . decodeUtf8 . XML.inner
+
+  pure $ Bridge (BridgeIP bridgeIP) serialNumber iconURL
+  
+  where
+    findChild :: ByteString -> XML.Node -> Either XMLParseException XML.Node
+    findChild name node = case XML.childrenBy node name of
+      [] -> Left $ XMLParseException $
+                    "Error parsing Bridge description.xml:\n\
+                    \Could not find'" `append` name `append` "' field."
+      (x:_) -> Right x
+
+    onExcept :: ByteString -> Maybe a -> Either XMLParseException a
+    onExcept _ (Just a) = Right a 
+    onExcept err Nothing = Left $ XMLParseException $ "Error parsing Bridge description.xml:\n" `append` err

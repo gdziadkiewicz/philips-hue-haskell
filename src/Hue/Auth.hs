@@ -1,5 +1,5 @@
 -- | 
--- Module: Hue.Light 
+-- Module: Hue.Auth 
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
@@ -9,7 +9,6 @@
 -- and store the credentials.
 module Hue.Auth (
   auth
-, getHueCredentials
 , registerApp
 ) where 
   
