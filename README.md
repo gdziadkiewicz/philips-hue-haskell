@@ -8,7 +8,7 @@ Running `Hue` actions
 ---------------------
 
 ```haskell
-runHue "192.168.1.100" $ do
+runHue $ do
   ls <- map setLight <$> fetchLights
   ls `traverse` (`request` on)
 ```
@@ -49,4 +49,23 @@ Perform an `alert`:
 doAlert name = do
   Just l <- lightWithName name
   setLight l `request` alert MultipleCycles 
+```
+
+Bridge discovery and configuration
+----------------------------------
+Interactive auto discovery is provided by `Hue.Config`.
+
+Example with GHCi:
+
+```
+> stack ghci
+λ import Hue.Config
+λ let conf = getHueConfig
+λ configIP <$> conf
+It seems like there is no configuration present.
+Searching for bridge, this may take a minute...
+Found bridge with id: 0017881717c1
+Push the button on your bridge.
+BridgeIP {ipAddress = "192.168.1.100"}
+λ 
 ```
