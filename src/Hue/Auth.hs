@@ -8,7 +8,7 @@
 -- Everything needed to authenticate with the Hue Bridge,
 -- and store the credentials.
 module Hue.Auth (
-  auth
+  authenticate
 , registerApp
 ) where 
   

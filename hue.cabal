@@ -28,10 +28,12 @@ library
                      , Hue.Discover
                      , Hue.Internal
                      , Hue.Internal.Light
+                     , Hue.Internal.Group
                      , Hue.Internal.Config
                      , Hue.Internal.Auth
                      , Hue.Internal.Request
                      , Hue.Internal.Discover
+  other-modules:       Hue.Examples
   build-depends:       base >= 4.7 && < 5
                      , http-client >= 0.5 && < 0.6
                      , http-conduit >= 2.2 && < 2.3
@@ -55,6 +57,7 @@ library
                      , time >= 1.6 && < 1.7
                      , hexml >= 0.3 && < 0.4
                      , safe-exceptions >= 0.1 && < 0.2
+                     , pretty-simple
   default-extensions:  ScopedTypeVariables
                      , OverloadedStrings
                      , RecordWildCards
@@ -63,6 +66,8 @@ library
                      , DataKinds
                      , KindSignatures
                      , LambdaCase
+                     , GeneralizedNewtypeDeriving
+                     , StandaloneDeriving
 
 -- executable hue-exe
 --   hs-source-dirs:      app

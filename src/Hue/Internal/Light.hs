@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeFamilies, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 -- |
 -- Module: Hue.Internal.Light 
 -- Copyright: (c) 2017 Thomas Smith
@@ -18,45 +17,36 @@ import Prelude hiding (fail)
 import Data.Aeson
 import Data.Time (LocalTime)
 import Data.Text (Text)
+import Data.Text.Read (decimal)
+
 import qualified Data.Text as Text
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Map (Map)
 import qualified Data.Map as Map
 
 import qualified Data.HashMap.Lazy as HashMap
 import Data.Word
+import Data.Function
 import Data.Foldable
 
 import Control.Monad.Fail
 
 import Hue.Internal
-import Hue.Internal.Request
+import Hue.Request
 
 -- ----------------------------------------------------------------
 -- Fetching lights
 -- ----------------------------------------------------------------
 
--- | Request for fetching all lights.
--- 
--- By default, the API returns this as a Map of lights where the 
--- key of the Map is the light ID.
--- 
--- To fetch all lights with their ID, use 'fetchLights'.
-lights :: Request (Map LightID (Light 'WithoutID))
-lights = get ParseResult $ api /~ credentials /: "lights"
+-- | Fetch all lights.
+lights :: Hue [Light]
+lights = unLights <$> get parseResult (api /~ credentials /: "lights")
 
 -- | Fetch a single light by it's name.
 -- 
 -- 'Nothing' when there exists no light with the given name.
-lightWithName :: Text -> Hue (Maybe (Light 'WithID))
-lightWithName n = find ((LightName n ==) . lightName) <$> fetchLights
-  
--- | Fetch all lights including their IDs.
-fetchLights :: Hue [Light 'WithID]
-fetchLights = fmap (uncurry setLightID) <$> Map.toList <$> request lights 
-  where 
-    setLightID i l = l { lightId = i }
+lightWithName :: Text -> Hue (Maybe Light)
+lightWithName n = find ((LightName n ==) . lightName) <$> lights
 
 -- ----------------------------------------------------------------
 -- Changing light status
@@ -68,22 +58,20 @@ fetchLights = fmap (uncurry setLightID) <$> Map.toList <$> request lights
 -- Example:
 -- 
 -- @
---  lightKitchen = do
---    Just l <- lightWithName \"Kitchen\"
---    request (setLight l) on
+--  lightKitchen = lightWithName \"Kitchen\" 
+--               >>= traverse (setLight on)
 -- @
 -- 
 -- Note that because 'SetLightState' represents a set of state 
 -- changes, it also supports monoidial combining:
 --  
 -- @
---  veryPurpleKitchen = do
---    Just l <- lightWithName \"Kitchen\"
---    request (setLight l) (on <> brightness 255 <> setHue 48500 <> saturation 255)
+--  veryPurpleKitchen = lightWithName \"Kitchen\" 
+--                    >>= traverse setLight (on <> brightness 255 <> setHue 48500 <> saturation 255)
 -- @
 --
-setLight :: SetLightState -> Light 'WithID -> Request ()
-setLight newState Light{..} = put (Body newState) IgnoreResult $ api /~ credentials /: "lights" /~ lightId /: "state"
+setLight :: SetLightState -> Light -> Hue ()
+setLight newState Light{..} = put (body newState) ignoreResult $ api /~ credentials /: "lights" /~ lightId /: "state"
 
 -- | Turn the light on.
 on :: SetLightState
@@ -94,8 +82,8 @@ off :: SetLightState
 off = mkSetLightState $ SetOn False
 
 -- | If the light is off then turn it on, otherwise turn it off.
-toggle :: LightState -> SetLightState
-toggle LightState{..} = mkSetLightState $ SetOn (not isOn)
+toggle :: Light -> Hue ()
+toggle l@Light{..} = setLight (mkSetLightState $ SetOn $ not $ isOn lightState) l
 
 
 -- | Set the brightness to a specific value.
@@ -204,12 +192,12 @@ noEffect = mkSetLightState $ SetEffect NoEffect
 -- Renaming / deleting lights
 -- ----------------------------------------------------------------
 
--- | Request for when you wish to change the name of a light.
+-- | Change the name of a light.
 -- 
 -- A light can have its name changed even when it is unreachable 
 -- or turned off.
-renameLight :: Light 'WithID -> LightName -> Request ()
-renameLight Light{..} name = put (Body name) IgnoreResult $ api /~ credentials /: "lights" /~ lightId
+renameLight :: LightName -> Light -> Hue ()
+renameLight name Light{..} = put (body name) ignoreResult $ api /~ credentials /: "lights" /~ lightId
 
 -- | Request for deleting a light.
 -- 
@@ -218,8 +206,8 @@ renameLight Light{..} name = put (Body name) IgnoreResult $ api /~ credentials /
 -- 
 -- Note that the device is not physically removed from the ZigBee
 -- network.
-deleteLight :: Light 'WithID -> Request ()
-deleteLight Light{..} = delete IgnoreResult $ api /~ credentials /: "lights" /~ lightId
+deleteLight :: Light -> Hue ()
+deleteLight Light{..} = delete ignoreResult $ api /~ credentials /: "lights" /~ lightId
 
 
 -- ----------------------------------------------------------------
@@ -243,49 +231,37 @@ deleteLight Light{..} = delete IgnoreResult $ api /~ credentials /: "lights" /~ 
 -- 
 -- Group 0 is a special group that cannot be 
 -- deleted and will always contain all lights known by the bridge.
-searchNewLights ::  Request ()
-searchNewLights = post NoBody IgnoreResult $ api /~ credentials /: "lights"
+searchNewLights ::  Hue ()
+searchNewLights = post noBody ignoreResult $ api /~ credentials /: "lights"
 
 -- | Gets a 'ScanResult' since the last time 'searchNewLights'
 -- was requested.
 -- 
 -- The returned scan results are reset when a new scan is started.
-newLights :: Request ScanResult
-newLights = get ParseResult $ api /~ credentials /: "lights" /: "new"
+newLights :: Hue ScanResult
+newLights = get parseResult $ api /~ credentials /: "lights" /: "new"
 
 
 -- ----------------------------------------------------------------
 -- Light datatypes
 -- ----------------------------------------------------------------
 
--- | Indicate, at the type level,
--- whether a light has an identifier.
-data KnownID = 
-    WithID
-  | WithoutID
-
--- | Type-level function computing the type of light identifier for a 'KnownID'.
-type family LightIDType (a :: KnownID) where
-  LightIDType 'WithID = LightID
-  LightIDType 'WithoutID = ()
-
--- | Represents a light.
--- 
--- This type is indexed by a 'KnownID' because some requests
--- return lights without their ID.
--- 
--- See 'lights' vs 'fetchLights'.
-data Light (a :: KnownID) = Light { 
+-- | Represents a single light bulb.
+data Light  = Light { 
     lightState :: LightState -- ^ The current state of a bulb.
   , lightName :: LightName -- ^ Get the current display name of a bulb.
   , lightType :: LightType -- ^ Get the supported features of a bulb.
   , modelid :: Text -- ^ Get the model identifier of a bulb.
   , swversion :: Text -- ^ Get the current software version of a bulb.
-  , lightId :: LightIDType a -- ^ Get the unique identifier of a light. Note that @'Light' 'WithoutID'@ has a @()@ identifier.
-}
+  , lightId :: LightID -- ^ Get the unique identifier of a light.
+} deriving Show
 
-deriving instance Show (Light 'WithID)
-deriving instance Show (Light 'WithoutID)
+-- | Lights are equal iff their 'ligthId's are equal.
+instance Eq Light where
+  l == l' = lightId l == lightId l'
+
+instance Ord Light where
+  compare l l' = compare (lightId l) (lightId l')
 
 -- | The display name of a light.
 newtype LightName = LightName {
@@ -295,7 +271,7 @@ newtype LightName = LightName {
 -- | Used to identify an individual light with the bridge.
 newtype LightID = LightID {
   lightIDInt :: Int -- ^ Get the integer value representing a LigthID.
-} deriving (Eq, Ord, Show, FromJSONKey)
+} deriving (Eq, Ord, Show, FromJSONKey, ToJSON)
 
 -- | Determines which features a bulb supports.
 data LightType =
@@ -394,34 +370,51 @@ data Effect =
 -- JSON Conversion instances
 -- ----------------------------------------------------------------
 
-instance FromJSON (Light 'WithoutID) where
-  parseJSON = withObject "Light state object" $ \v -> do
-    state <- v .: "state"
-    Light 
-      <$> parseLightState state
-      <*> v .: "name"
-      <*> v .: "type"
-      <*> v .: "modelid"
-      <*> v .: "swversion"
-      <*> pure () 
-    
-    where
-      parseLightState v  = LightState 
-        <$> v .: "on"
-        <*> v .: "bri"
-        <*> v .: "alert"
-        <*> v .: "reachable"
-        <*> v .:? "ct"
-        <*> parseColorState v
-        
-      parseColorState v = do
-        h <- v .:? "hue"
-        sat <- v .:? "sat"
-        xyPair <- v .:? "xy"
-        eff <- v .:? "effect"
-        colormode <- v .:? "colormode"
-        pure $ ColorState <$> h <*> sat <*> xyPair <*> eff <*> colormode
+-- | Intermediate form for a list of 'Light's.
+-- Used to parse the Bridge response for 'lights'.
+newtype Lights = Lights {
+  unLights :: [Light]
+}
 
+instance FromJSON Lights where
+  parseJSON o = do
+    lightMap :: [(LightID, Value)] <- Map.toList <$> parseJSON o
+    Lights <$> traverse (\(lightId, lightJson) -> (&) lightId <$> parseLight lightJson) lightMap
+  
+    where
+      parseLight = withObject "Light object" $ \v -> do
+        state <- v .: "state"
+        Light 
+          <$> parseLightState state
+          <*> v .: "name"
+          <*> v .: "type"
+          <*> v .: "modelid"
+          <*> v .: "swversion"
+        
+        where
+          parseLightState v = LightState 
+            <$> v .: "on"
+            <*> v .: "bri"
+            <*> v .: "alert"
+            <*> v .: "reachable"
+            <*> v .:? "ct"
+            <*> parseColorState v
+            
+          parseColorState v = do
+            h <- v .:? "hue"
+            sat <- v .:? "sat"
+            xyPair <- v .:? "xy"
+            eff <- v .:? "effect"
+            colormode <- v .:? "colormode"
+            pure $ ColorState <$> h <*> sat <*> xyPair <*> eff <*> colormode
+
+-- | Parse a LightID from Text
+instance FromJSON LightID where
+  parseJSON = withText "LightID" $ 
+    either 
+      (\err -> fail $ "Unable to parse light id: " ++ err) 
+      (pure . LightID . fst) 
+    . decimal
 
 instance ToJSON LightName where
   toJSON (LightName name) = object [("name", String name)]

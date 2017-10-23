@@ -29,8 +29,8 @@ import Hue.Internal.Request
 -- Send this request after the user pushes the bridge button to get fresh credentials.
 --
 -- See also: 'registerApp' 
-auth :: HueDeviceType -> Request HueCredentials
-auth d = post (Body d) ParseResult api
+authenticate :: HueDeviceType -> Hue HueCredentials
+authenticate d = post (Body d) ParseResult api
 
 
 -- | Register the application with the bridge
@@ -48,7 +48,7 @@ registerApp = do
     tryRegisterWithBridge :: Hue (Maybe HueCredentials)
     tryRegisterWithBridge = (do 
         deviceName <- liftIO getHostName
-        Just <$> (request $ auth $ HueDeviceType $ Text.pack deviceName)
+        Just <$> (authenticate $ HueDeviceType $ Text.pack deviceName)
       ) `catchError` handleApiException
 
     handleApiException :: (MonadIO m, MonadError HueApiException m) => HueApiException -> m (Maybe a)

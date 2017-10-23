@@ -8,12 +8,11 @@
 -- Types to build representations for Hue API requests. 
 module Hue.Request (
 -- * Constructing requests
-  Request
-, get
+  get
 , post
 , put
 , delete
-, mkRequest
+, request
 -- * Adding a body to the Request
 , Body
 , body
@@ -35,9 +34,6 @@ module Hue.Request (
 , toSegment
 -- * Inspecting a Request
 , requestPath
-, requestMethod
-, requestResult
-, withRequestBody
 ) where 
   
 import Hue.Internal.Request

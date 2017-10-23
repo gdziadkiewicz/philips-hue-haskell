@@ -10,61 +10,52 @@
 -- This is an internal module.
 -- 
 -- Please use "Hue.Request" instead. 
-{-# LANGUAGE GADTs, RankNTypes #-}
+{-# LANGUAGE GADTs #-}
 module Hue.Internal.Request (
   module Hue.Internal.Request
 , module MethodTypes
 ) where
 
 import Data.Aeson hiding (Result(..))
+
 import Data.String (fromString)
-import Data.Text (Text)
+import Data.Text (Text, append)
+import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8)
+
+
 import Data.ByteString (ByteString)
+import Data.ByteString.Lazy (toStrict)
 import Blaze.ByteString.Builder (toByteString)
+
 import Network.HTTP.Types.URI (encodePathSegments)
 import Network.HTTP.Types.Method as MethodTypes (StdMethod(..))
+import Network.HTTP.Simple hiding (JSONParseException, Proxy, Request)
+import qualified Network.HTTP.Simple as HTTP
+
+import Hue.Internal
+
+import Control.Exception.Safe
+import Control.Monad.Except
+import Control.Monad.Reader
 
 
--- | Type repersenting a request that can be sent to the bridge.
--- Requests identify:
--- 
---  * which API gets called,
--- 
---  * which request method is used,
--- 
---  * the body of the request,
--- 
---  * the result of the request.
--- 
--- Pre-defined requests can be found in the module that they functionally belong to, for 
--- example see 'lights' in "Hue.Light".
--- 
--- A request is built from:
--- 
---  * a request method ('get', 'post', 'put', or 'delete')
--- 
---  * a 'Body'
--- 
---  * an indicator for what to do with the response. See 'Result'.
--- 
---  * a 'RequestPath'
--- 
--- The 'RequestPath' can be built by appending an 'PathSegment' to an existing 
--- RequestPath with either '/:' or '/~'.
--- 
--- If you do not care about the data returned from the endpoint, you should use 'IgnoreResponse'.
--- 
--- Each request must have a type annotation specifying the request body and
--- return type. '()' can be used for empty request body and response types.
---
--- Example:
--- 
--- @
--- lightsRequest :: Request [Lights]
--- lightsRequest = get ParseResult $ api \/~ credentials /: "lights"
--- @
-data Request r where
-  Request :: StdMethod -> Body b -> Result r -> RequestPath -> Request r
+-- | Make a GET request
+get :: Result result -> RequestPath -> Hue result
+get = request GET NoBody
+
+-- | Make a POST request
+post :: Body body -> Result result -> RequestPath -> Hue result
+post = request POST
+
+-- | Make a PUT request
+put :: Body body -> Result result -> RequestPath -> Hue result
+put = request PUT
+
+-- | Make a DELETE request
+delete :: Result result -> RequestPath -> Hue result
+delete = request DELETE NoBody
+
 
 -- | Indicator for the body of a request.
 data Body b where
@@ -96,25 +87,55 @@ ignoreResult = IgnoreResult
 parseResult :: FromJSON a => Result a
 parseResult = ParseResult
 
--- | Make a GET request
-get :: Result result -> RequestPath -> Request result
-get = mkRequest GET NoBody
 
--- | Make a POST request
-post :: Body body -> Result result -> RequestPath -> Request result
-post = mkRequest POST
+-- | Construct a request from scratch.
+-- 
+-- This function gives you the opportunity to talk directly to any bridge endpoint
+-- and provide or get data in your own types.
+-- 
+-- Pre-defined requests can be found in the module that they functionally belong to, for 
+-- example see 'Hue.Light.lights'.
+request :: StdMethod -> Body body -> Result result -> RequestPath -> Hue result
+request method b result rPath = case result of
+  IgnoreResult -> do
+    _ :: [HueSuccess Value] <- mkRequest >>= performRequest
+    pure ()
+  ParseResult -> mkRequest >>= performRequest
 
--- | Make a PUT request
-put :: Body body -> Result result -> RequestPath -> Request result
-put = mkRequest PUT
+  where
+    mkRequest :: Hue HTTP.Request
+    mkRequest = do
+      path <- requestPath rPath . unCredentials . configCredentials <$> ask
+      ip <- ipAddress . configIP <$> ask
+      pure 
+        $ setRequestPath path
+        $ setRequestMethod (fromString $ show method)
+        $ setRequestHost ip
+        $ case b of
+          (Body b') -> setRequestBodyJSON b' defaultRequest
+          _        -> defaultRequest
 
--- | Make a DELETE request
-delete :: Result result -> RequestPath -> Request result
-delete = mkRequest DELETE NoBody
+    performRequest :: FromJSON a
+                   => HTTP.Request
+                   -> Hue a
+    performRequest req = do
+      response <- liftIO $ httpLBS req
+      let responseText = toStrict $ getResponseBody response
+      case eitherDecodeStrict' responseText of 
+        Left err -> throwParseError err responseText
+        Right (HueErrorResponse err) -> throwError $ HueApiException err
+        Right (HueResponse a) -> pure a
 
--- | Construct a request for any HTTP method, body and result.
-mkRequest :: StdMethod -> Body b -> Result r -> RequestPath -> Request r
-mkRequest = Request
+    throwParseError :: String 
+                    -> ByteString 
+                    -> Hue a
+    throwParseError err responseText = 
+      liftIO $ throw $ Hue.Internal.JSONParseException $
+          "Error parsing bridge response: \n\t"
+          `append` Text.pack err
+          `append` "\nAttempted to parse response:\n\t"
+          `append` decodeUtf8 responseText
+
 
 -- | Identifies the endpoint path for a 'Request'.
 data RequestPath = RequestPath [PathSegment]
@@ -158,10 +179,10 @@ RequestPath prev /~ segment = RequestPath (toSegment segment:prev)
 -- | Return the path that the request currently represents.
 -- 
 -- URL-encodes each segment.
-requestPath :: Request a 
+requestPath :: RequestPath
              -> Text -- ^ Credentials needed to query most endpoints.
              -> ByteString
-requestPath (Request _ _ _ (RequestPath segments)) creds
+requestPath (RequestPath segments) creds
   = toByteString 
   $ encodePathSegments 
   $ segmentToText creds
@@ -169,19 +190,6 @@ requestPath (Request _ _ _ (RequestPath segments)) creds
   where
     segmentToText _ (TextSegment s) = s
     segmentToText c CredentialsSegment = c
-
--- | Get the method of a 'Request' as a ByteString.
-requestMethod :: Request a -> ByteString
-requestMethod (Request m _ _ _) = fromString $ show m
-
--- | Perform a computation based on the body of a request.
--- Since the body type is existential, you'll need to provide a function that's polymorphic in 'b'.
-withRequestBody :: Request a -> (forall b. Body b -> x) -> x
-withRequestBody (Request _ b _ _) f = f b
-
--- | Get how a response for this request is handled.
-requestResult :: Request a -> Result a
-requestResult (Request _ _ r _) = r
 
 -- | Class for all things that can be turned into a PathSegment.
 -- Anything that has a 'Text'ual representation could have an instance.
@@ -201,3 +209,7 @@ instance ToPathSegment PathSegment where
 instance ToPathSegment Text where
   toSegment = TextSegment
   
+
+-- | Credentials can be used as part of an API path.
+instance ToPathSegment HueCredentials where
+  toSegment (HueCredentials creds) = TextSegment creds

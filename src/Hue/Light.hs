@@ -9,7 +9,6 @@
 module Hue.Light (
   -- * Fetching lights
   lights
-, fetchLights
 , lightWithName
 -- * Changing light state
 , setLight
@@ -57,8 +56,6 @@ module Hue.Light (
 , LightName(..)
 , LightID
 , lightIDInt
-, LightIDType
-, KnownID(..)
 ) where 
 
 import Hue.Internal.Light

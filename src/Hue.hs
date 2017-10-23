@@ -9,10 +9,10 @@
 module Hue (
 -- * How to use this library
 -- $usage
-  request
 -- * Running Hue actions
 -- $evaluating
-, runHue
+  runHue
+, runHue_
 , evalHue
 -- * Configuration
 -- $conf
@@ -25,21 +25,18 @@ module Hue (
 , HueSuccess(..)
 , HueApiException(..)
 , HueError(..)
-, x
 ) where
 
 import Control.Monad.Except
 import Hue.Internal
-import Hue.Light
-import Hue.Request
 import Hue.Config
 
 -- $usage
 -- There are two ways in which you can use this library:
 -- 
---  * Use pre-defined actions of type @('Hue' a)@, e.g.: 'fetchLights',
+--  * Use pre-defined actions of type @('Hue' a)@, e.g.: 'Hue.Light.lights',
 -- 
---  * Call an endpoint with 'request' to construct your own 'Hue' actions.
+--  * Call an endpoint with the "Hue.Request" module to construct your own 'Hue' actions.
 -- 
 -- See 'runHue' and 'evalHue' for details on evaluating the actions in @IO@.
 
@@ -52,16 +49,19 @@ import Hue.Config
 -- otherwise performs interactive bridge discovery and registration.
 runHue :: MonadIO m 
        => Hue a -- ^ The action to evaluate 
-       -> m a
+       -> m (Either HueApiException a)
 runHue h = do
   conf <- liftIO $ getHueConfig
   evalHue conf h
 
-x :: IO ()
-x = runHue $ do
-  Just l <- lightWithName "Ufo"
-  void $ request $ setLight on l
+-- | Run a Hue action, throwing an error on API exceptions.
+runHue_ :: MonadIO m 
+        => Hue a -- ^ The action to evaluate 
+        -> m a
+runHue_ h = do
+  conf <- liftIO $ getHueConfig
+  unsafeEvalHue conf h
 
 -- $conf
 -- These are all data types necessary for constructing a configuration.
--- See "Hue.Config" for automatically obtaining a HueConfig.
+-- See "Hue.Config" for automatically obtaining a 'Hue.Config.HueConfig'.

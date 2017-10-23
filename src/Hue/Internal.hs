@@ -1,4 +1,3 @@
-{-# LANGUAGE ConstraintKinds, TypeFamilies, GADTs, UndecidableInstances, GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 -- |
 -- Module: Hue.Internal 
 -- Copyright: (c) 2017 Thomas Smith
@@ -15,18 +14,16 @@ module Hue.Internal where
 
 import Prelude hiding (putStrLn)
 
-import Network.HTTP.Simple hiding (JSONParseException, Proxy, Request)
-import qualified Network.HTTP.Simple as HTTP
-import Data.Aeson
+
+import Data.Aeson hiding (Result)
 import Data.Maybe (catMaybes)
 import qualified Data.Map.Strict as Map
 import qualified Data.Vector as V
 
 import Data.String
 import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (toStrict)
 
-import Data.Text (Text, append)
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 
@@ -34,8 +31,6 @@ import Control.Applicative
 import Control.Exception.Safe
 import Control.Monad.Except
 import Control.Monad.Reader
-
-import Hue.Internal.Request
 
 -- | The Hue Monad.
 newtype Hue a = Hue {
@@ -48,9 +43,18 @@ newtype Hue a = Hue {
   , MonadReader HueConfig
   , MonadError HueApiException)
 
+evalHue :: MonadIO m => HueConfig -> Hue a -> m (Either HueApiException a)
+evalHue config h = do 
+  e <- unwrapHue config h
+  case e of 
+    Left (JSONParseException err) -> error $ Text.unpack err 
+    Right x -> pure x
+  where
+    unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
+
 -- | Evaluate a hue action with a specific config.
-evalHue :: MonadIO m => HueConfig -> Hue a -> m a
-evalHue config h = do
+unsafeEvalHue :: MonadIO m => HueConfig -> Hue a -> m a
+unsafeEvalHue config h = do
   e <- unwrapHue config h
   case e of 
     Left (JSONParseException err) -> error $ Text.unpack err 
@@ -59,56 +63,7 @@ evalHue config h = do
   where
     unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
 
--- | Send a request to the bridge.
--- 
--- This function gives you the opportunity to talk directly to any bridge endpoint
--- and provide or get data in your own types.
--- In some cases however, calling the API directly can be cumbersome or too low level
--- and it might be easier to use one of the pre-defined 'Hue' actions.
--- 
--- Pre-defined requests can be found in the module that they functionally belong to, for 
--- example see 'lights' in "Hue.Light".
-request :: Request a -> Hue a
-request r = case requestResult r of
-  IgnoreResult -> do
-    _ :: [HueSuccess Value] <- mkRequest >>= performRequest
-    pure ()
-  ParseResult -> mkRequest >>= performRequest
 
-  where
-
-    mkRequest :: Hue HTTP.Request
-    mkRequest = do
-      path <- requestPath r . unCredentials . configCredentials <$> ask
-      ip <- ipAddress . configIP <$> ask
-      pure 
-        $ setRequestPath path
-        $ setRequestMethod (requestMethod r)
-        $ setRequestHost ip
-        $ withRequestBody r $ \case
-          (Body b) -> setRequestBodyJSON b defaultRequest
-          _        -> defaultRequest
-
-    performRequest :: FromJSON a
-                   => HTTP.Request
-                   -> Hue a
-    performRequest req = do
-      response <- liftIO $ httpLBS req
-      let responseText = toStrict $ getResponseBody response
-      case eitherDecodeStrict' responseText of 
-        Left err -> throwParseError err responseText
-        Right (HueErrorResponse err) -> throwError $ HueApiException err
-        Right (HueResponse a) -> pure a
-
-    throwParseError :: String 
-                    -> ByteString 
-                    -> Hue a
-    throwParseError err responseText = 
-      liftIO $ throw $ Hue.Internal.JSONParseException $
-          "Error parsing bridge response: \n\t"
-          `append` Text.pack err
-          `append` "\nAttempted to parse response:\n\t"
-          `append` decodeUtf8 responseText
 
 -- ----------------------------------------------------------------
 -- BASE TYPES
@@ -159,6 +114,7 @@ data Bridge = Bridge {
   , bridgeIconURL :: Text
 } deriving (Show)
 
+-- | Bridge equality is determined by the serial number.
 instance Eq Bridge where
   b1 == b2 = bridgeSerial b1 == bridgeSerial b2
 
@@ -183,10 +139,6 @@ instance FromJSON HueCredentials where
 -- | Used to write credentials to a config file.
 instance ToJSON HueCredentials where
   toJSON (HueCredentials c) = String c
-
--- | Credentials can be used as part of an API path.
-instance ToPathSegment HueCredentials where
-  toSegment (HueCredentials creds) = TextSegment creds
 
 -- | Device type used when registering a new application with the bridge.
 newtype HueDeviceType = HueDeviceType Text deriving (Show)
