@@ -4,6 +4,31 @@ Control Philips Hue lights with Haskell.
 
 To get started, import the `Hue` module.
 
+API Coverage
+------------
+- [x] **Lights**
+  - [x] Get all lights
+  - [x] Get new lights
+  - [x] Search for lights
+  - [x] Get light attributes/state
+  - [x] Rename lights
+  - [x] Set light state
+  - [x] Delete light
+- [x] **Groups**
+  - [x] Get all groups
+  - [x] Create group
+  - [x] Get group attributes
+  - [x] Set group attributes
+  - [x] Set group state
+  - [x] Delete group
+- [ ] **Schedules**
+- [ ] **Scenes**
+- [ ] **Sensors**
+- [ ] **Rules**
+- [ ] **Configuration**
+- [ ] **Resourcelinks**
+- [ ] **Capabilities**
+
 Running `Hue` actions
 ---------------------
 

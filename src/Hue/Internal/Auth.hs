@@ -52,10 +52,9 @@ registerApp = do
       ) `catchError` handleApiException
 
     handleApiException :: (MonadIO m, MonadError HueApiException m) => HueApiException -> m (Maybe a)
-    handleApiException err@(HueApiException [HueError code _]) = 
-      if buttonNotYetPushed
-        then pure Nothing
-        else throwError err
+    handleApiException err@(HueApiException []) = throwError err
+    handleApiException err@(HueApiException ((HueError code _):_))
+      | buttonNotYetPushed = pure Nothing
+      | otherwise          = throwError err
       where
         buttonNotYetPushed = code == 101
-  

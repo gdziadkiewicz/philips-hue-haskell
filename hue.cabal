@@ -58,6 +58,7 @@ library
                      , hexml >= 0.3 && < 0.4
                      , safe-exceptions >= 0.1 && < 0.2
                      , pretty-simple
+                     , flow
   default-extensions:  ScopedTypeVariables
                      , OverloadedStrings
                      , RecordWildCards

@@ -134,6 +134,7 @@ data NormalGroup =
   -- 
   -- A light can be in multiple LightGroups.
   LightGroup 
+
   -- | A group of lights that are physically located in the same place in the house.
   -- 
   -- Rooms behave similar to 'LightGroup's, except: 
@@ -153,6 +154,7 @@ data NormalGroup =
 data LuminaireGroup =
   -- | Group that represents an entire multisource luminaire.
   Luminaire
+
   -- | A sub group of multisource 'Luminaire' lights.
   -- 
   -- These typically represent the separate sections of a multisource luminaire. 
@@ -228,9 +230,11 @@ newtype Groups = Groups {
 instance FromJSON Groups where
   parseJSON o = do
     groupMap :: [(GroupID, Value)] <- Map.toList <$> parseJSON o
-    Groups <$> traverse (\(groupId, groupJson) -> (groupId &) <$> parseGroup groupJson) groupMap
+    Groups <$> traverse (uncurry parseGroupWithId) groupMap
   
     where
+      parseGroupWithId groupId groupJson = (groupId &) <$> parseGroup groupJson
+
       parseGroup = withObject "Group object" $ \v -> do
         Group 
           <$> v .: "name"
@@ -238,7 +242,7 @@ instance FromJSON Groups where
           <*> ((Left <$> v .: "type") <|> (Right <$> v .: "type"))
           <*> v .: "state"
           <*> v .:! "class"
-          <*> (maybe False id <$> v .:? "recycle")
+          <*> (fromMaybe False <$> v .:? "recycle")
 
 instance FromJSON NormalGroup where
   parseJSON = withText "Normal group type" $ \case 
