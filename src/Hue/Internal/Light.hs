@@ -17,9 +17,9 @@ import Prelude hiding (fail)
 import Data.Aeson
 import Data.Time (LocalTime)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Text.Read (decimal)
 
-import qualified Data.Text as Text
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
@@ -29,6 +29,7 @@ import Data.Word
 import Data.Function
 import Data.Foldable
 
+import Control.Applicative
 import Control.Monad.Fail
 
 import Hue.Internal
@@ -47,6 +48,9 @@ lights = unLights <$> get parseResult (api /~ credentials /: "lights")
 -- 'Nothing' when there exists no light with the given name.
 lightWithName :: Text -> Hue (Maybe Light)
 lightWithName n = find ((LightName n ==) . lightName) <$> lights
+
+allLightsWithName :: Text -> Hue [Light]
+allLightsWithName n = filter ((LightName n ==) . lightName) <$> lights
 
 -- ----------------------------------------------------------------
 -- Changing light status
@@ -71,7 +75,10 @@ lightWithName n = find ((LightName n ==) . lightName) <$> lights
 -- @
 --
 setLight :: SetLightState -> Light -> Hue ()
-setLight newState Light{..} = put (body newState) ignoreResult $ api /~ credentials /: "lights" /~ lightId /: "state"
+setLight newState Light{..} = put
+  (body newState)
+  ignoreResult
+  (api /~ credentials /: "lights" /~ lightId /: "state")
 
 -- | Turn the light on.
 on :: SetLightState
@@ -253,6 +260,7 @@ data Light  = Light {
   , lightType :: LightType -- ^ Get the supported features of a bulb.
   , modelid :: Text -- ^ Get the model identifier of a bulb.
   , swversion :: Text -- ^ Get the current software version of a bulb.
+  , lightManufacturer :: Text -- ^ Get the name of the manufacturer of the device.
   , lightId :: LightID -- ^ Get the unique identifier of a light.
 } deriving Show
 
@@ -275,10 +283,12 @@ newtype LightID = LightID {
 
 -- | Determines which features a bulb supports.
 data LightType =
-    DimmableLight -- ^ Lights for which the 'brightness' can be adjusted.
+    OnOffLight -- ^ Lights for which only the 'on' state can be set.
+  | DimmableLight -- ^ Lights for which the 'brightness' can be adjusted.
   | ColorLight -- ^ Lights for which 'brightness' and 'ColorState' are available.
   | ColorTemperatureLight -- ^ Lights which support only 'brightness' and 'temperature'.
   | ExtendedColorLight -- ^ Lights which support all the above.
+  | OtherLightType Text -- ^ For any type of light not officially supported by Hue.
   deriving (Eq, Ord, Show)
 
 -- | Fully describes the current state of a light.
@@ -390,15 +400,18 @@ instance FromJSON Lights where
           <*> v .: "type"
           <*> v .: "modelid"
           <*> v .: "swversion"
+          <*> v .: "manufacturername"
         
         where
-          parseLightState v = LightState 
-            <$> v .: "on"
-            <*> v .: "bri"
-            <*> v .: "alert"
-            <*> v .: "reachable"
-            <*> v .:? "ct"
-            <*> parseColorState v
+          parseLightState v = do
+            isOn <- v .: "on"
+            -- If brightness is not supported, we turn the on/off status into full/zero brightness.
+            brightness <- v .: "bri" <|> pure (maxBound * toEnum (fromEnum isOn))
+            LightState isOn brightness
+              <$> v .: "alert"
+              <*> v .: "reachable"
+              <*> v .:? "ct"
+              <*> parseColorState v
             
           parseColorState v = do
             h <- v .:? "hue"
@@ -420,12 +433,13 @@ instance ToJSON LightName where
   toJSON (LightName name) = object [("name", String name)]
 
 instance FromJSON LightType where
-  parseJSON = withText "Light type" $ \case
-    "Dimmable light" -> pure DimmableLight
-    "Color light" -> pure ColorLight
-    "Color temperature light" -> pure ColorTemperatureLight
-    "Extended color light" -> pure ExtendedColorLight
-    x -> fail $ "Unknown light type: " ++ Text.unpack x     
+  parseJSON = withText "Light type" $ \x -> case Text.toLower x of
+    "on/off" -> pure OnOffLight
+    "dimmable light" -> pure DimmableLight
+    "color light" -> pure ColorLight
+    "color temperature light" -> pure ColorTemperatureLight
+    "extended color light" -> pure ExtendedColorLight
+    _ -> pure $ OtherLightType x
 
 instance FromJSON ColorMode where
   parseJSON = withText "Light colormode" $ \case 
