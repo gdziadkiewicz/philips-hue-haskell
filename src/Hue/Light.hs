@@ -1,5 +1,5 @@
--- | 
--- Module: Hue.Light 
+-- |
+-- Module: Hue.Light
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
@@ -56,6 +56,6 @@ module Hue.Light (
 , LightName(..)
 , LightID
 , lightIDInt
-) where 
+) where
 
 import Hue.Internal.Light

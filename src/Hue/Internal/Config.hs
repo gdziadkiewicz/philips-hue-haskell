@@ -6,10 +6,10 @@
 -- Stability: experimental
 --
 -- Definitions for obtaining and storing a bridge configuration.
--- 
+--
 -- This is an internal module.
--- 
--- Please use "Hue.Config" instead. 
+--
+-- Please use "Hue.Config" instead.
 module Hue.Internal.Config where
 
 import Prelude hiding (readFile, writeFile, putStrLn)
@@ -35,35 +35,35 @@ import Hue.Internal
 import Hue.Auth
 import Hue.Discover
 
--- | Create a HueConfig with an explicit bridge IP address. 
--- 
+-- | Create a HueConfig with an explicit bridge IP address.
+--
 -- Credentials will be set to a default that can only be used against unauthenticated resources.
--- 
+--
 -- To get a HueConfig with credentials, use 'getHueCredentials' or 'registerApp'
 configWithIP :: BridgeIP -> HueConfig
 configWithIP ip = HueConfig ip (HueCredentials "-")
 
 -- | Get a configuration.
--- 
+--
 -- This function first tries to read the config from @~\/.hue\/config.json@.
--- If this fails, it invokes 'interactiveConfigureHue' and the result will be stored on disk. 
+-- If this fails, it invokes 'interactiveConfigureHue' and the result will be stored on disk.
 getHueConfig :: IO HueConfig
 getHueConfig = do
   mConf <- runMaybeT $ fetchConfigFromDisk <|> interactiveConfigureHue
   maybe (throwString "Hue bridge configuration failed. No bridges could be found") pure mConf
 
 -- | Interactively get a fresh configuration.
--- 
+--
 -- This function invokes 'upnpDiscoverBridges' and 'registerApp' for the first bridge found.
 -- Results are stored in @~\/.hue\/config.json@.
 interactiveConfigureHue :: MaybeT IO HueConfig
-interactiveConfigureHue = do 
-  liftIO $ putStrLn 
+interactiveConfigureHue = do
+  liftIO $ putStrLn
     "It seems like there is no configuration present.\n\
     \Searching for bridge, this may take a minute..."
   Bridge ip serial _ <- MaybeT $ listToMaybe <$> upnpDiscoverBridges
   liftIO $ putStrLn $ "Found bridge with id: " `Text.append` serial
-  credentials <- unsafeEvalHue (configWithIP ip) registerApp 
+  credentials <- unsafeEvalHue (configWithIP ip) registerApp
   let config = HueConfig ip credentials
   liftIO $ writeConfigToDisk config
   pure config

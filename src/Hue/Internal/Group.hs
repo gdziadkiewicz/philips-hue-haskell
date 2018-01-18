@@ -1,15 +1,15 @@
 -- |
--- Module: Hue.Internal.Group 
+-- Module: Hue.Internal.Group
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
 -- Types representing commands to change the state of a light.
--- 
+--
 -- This is an internal module.
--- 
--- Please use "Hue.Group" instead. 
+--
+-- Please use "Hue.Group" instead.
 module Hue.Internal.Group where
 
 import Prelude hiding (fail)
@@ -37,14 +37,14 @@ import Hue.Request
 import Hue.Light
 
 -- | Fetch all groups known to the bridge.
--- 
+--
 -- This includes 'Room's, 'LightGroup's, 'Luminaire's and 'LuminairePart's.
 -- Keep in mind that the Philips Hue app only shows groups of type 'Room'.
 groups :: Hue [Group]
 groups = unGroups <$> get parseResult (api /~ credentials /: "groups")
 
 -- | Fetch only groups of type 'Room'.
--- 
+--
 -- Keep in mind that the Philips Hue app only shows groups of this type.
 rooms :: Hue [Group]
 rooms = filter ((Right Room ==) . groupType) <$> groups
@@ -66,38 +66,38 @@ luminaireParts :: Hue [Group]
 luminaireParts = filter ((Left LuminairePart ==) . groupType) <$> groups
 
 -- | Fetch a group by it's name.
--- 
+--
 -- 'Nothing' when there exists no group with the given name.
 groupWithName :: Text -> Hue (Maybe Group)
 groupWithName n = find ((GroupName n ==) . groupName) <$> groups
 
 
 -- | Change the name of a group.
--- 
+--
 -- If the name is already taken a space and number will be appended by the bridge e.g. “Custom Group 1”.
 renameGroup :: GroupName -> Group -> Hue ()
 renameGroup = changeGroup . Set.singleton . ChangeName
 
 -- | Alter which lights are part of a group.
--- 
+--
 -- Any lights in the given list will be added to the group.
 -- Lights not in the list will be removed from the group.
 changeGroupMembers :: [Light] -> Group -> Hue ()
 changeGroupMembers = changeGroup . Set.singleton . ChangeGroupMembers . map lightId
 
 -- | Alter the class of a group.
--- 
+--
 -- Changing the class also change the icon displayed for the group in the Philips Hue app.
 changeGroupClass :: GroupClass -> Group -> Hue ()
 changeGroupClass = changeGroup . Set.singleton . ChangeClass
 
 -- | Send a set of group change commands to the bridge.
--- 
+--
 -- Useful for when you want to change multiple attributes at once.
 -- Otherwise, just use 'renameGroup', 'changeGroupMembers' or 'changeGroupClass'.
 changeGroup :: Set GroupChange -> Group -> Hue ()
-changeGroup changes Group{..} = put 
-  (body $ GroupChanges changes) 
+changeGroup changes Group{..} = put
+  (body $ GroupChanges changes)
   ignoreResult
   (api /~ credentials /: "groups" /~ groupId)
 
@@ -108,7 +108,7 @@ deleteGroup Group{..} = delete ignoreResult $ api /~ credentials /: "groups" /~ 
 
 -- | Represents a group of lights.
 data Group = Group {
-    groupName :: GroupName -- ^ Get the current display name of a group. 
+    groupName :: GroupName -- ^ Get the current display name of a group.
   , groupLights :: [LightID] -- ^ Get all the lights that belong to this group.
   , groupType :: Either LuminaireGroup NormalGroup -- ^ Get the type that this group belongs to.
   , groupState :: GroupState -- ^ Get the state of the group.
@@ -127,37 +127,37 @@ instance Ord Group where
 
 
 -- | The type of a group of lights.
--- 
+--
 -- Unlike 'LuminaireGroup' these groups can be manually created by a user.
-data NormalGroup = 
+data NormalGroup =
   -- | A group of lights that can be controlled together.
-  -- 
+  --
   -- A light can be in multiple LightGroups.
-  LightGroup 
+  LightGroup
 
   -- | A group of lights that are physically located in the same place in the house.
-  -- 
-  -- Rooms behave similar to 'LightGroup's, except: 
-  -- 
-  -- A room can be empty, a light is only allowed in one room and 
+  --
+  -- Rooms behave similar to 'LightGroup's, except:
+  --
+  -- A room can be empty, a light is only allowed in one room and
   -- a room isn't automatically deleted when all lights in that room are deleted.
-  -- 
+  --
   -- Keep in mind that the Philips Hue app only shows and creates groups of this type.
   | Room
   deriving (Show, Eq)
 
 -- | Special type of light group for [multisource luminaires](https://developers.meethue.com/documentation/multisource-luminaires)
--- 
--- The bridge will pre-install these groups for ease of use. 
--- This type of groups cannot be created manually. 
--- A light can only be in a maximum of one luminaire group. 
+--
+-- The bridge will pre-install these groups for ease of use.
+-- This type of groups cannot be created manually.
+-- A light can only be in a maximum of one luminaire group.
 data LuminaireGroup =
   -- | Group that represents an entire multisource luminaire.
   Luminaire
 
   -- | A sub group of multisource 'Luminaire' lights.
-  -- 
-  -- These typically represent the separate sections of a multisource luminaire. 
+  --
+  -- These typically represent the separate sections of a multisource luminaire.
   | LuminairePart
   deriving (Show, Eq)
 
@@ -173,31 +173,31 @@ newtype GroupID = GroupID {
 
 -- | Indicates whether any or all of the lights in a group are currently turned on.
 data GroupState =
-    NoneOn -- ^ None of the lights in the group are on. 
+    NoneOn -- ^ None of the lights in the group are on.
   | SomeOn -- ^ Some light in the group is on.
   | AllOn -- ^ The entire group is on.
   deriving (Eq, Show)
 
 -- | Describes the catagory of a group.
--- 
+--
 -- Used in the Hue app to show an appropriate icon.
-data GroupClass = 
+data GroupClass =
     LivingRoomGroup | KitchenGroup | DiningGroup | BedroomGroup
   | KidsBedroomGroup | BathroomGroup | NurseryGroup | RecreationGroup
   | OfficeGroup | GymGroup | HallwayGroup | ToiletGroup | FrontDoorGroup
   | GarageGroup | TerraceGroup | GardenGroup | DrivewayGroup
-  | CarportGroup | OtherGroup 
+  | CarportGroup | OtherGroup
   deriving (Show, Eq, Ord)
 
 newtype GroupChanges = GroupChanges (Set GroupChange)
-data GroupChange = 
+data GroupChange =
     ChangeName GroupName
   | ChangeGroupMembers [LightID]
   | ChangeClass GroupClass
   deriving Show
 
 -- | Two group changes are equal iff their constructor is equal.
--- 
+--
 -- This ensures that when we have Set GroupChange, each type of change can only occur once.
 instance Eq GroupChange where
   (ChangeName _) == (ChangeName _) = True
@@ -206,12 +206,12 @@ instance Eq GroupChange where
   _ == _ = False
 
 -- | Ordering is done only based on constructor name:
--- 
+--
 -- ChangeName < ChangeGroupMembers < ChangeClass
 -- This ensures that when we have Set GroupChange, each type of change can only occur once.
 instance Ord GroupChange where
   compare x y = compare (toInt x) (toInt y)
-    where 
+    where
       toInt :: GroupChange -> Int
       toInt (ChangeName _) = 0
       toInt (ChangeGroupMembers _) = 1
@@ -231,12 +231,12 @@ instance FromJSON Groups where
   parseJSON o = do
     groupMap :: [(GroupID, Value)] <- Map.toList <$> parseJSON o
     Groups <$> traverse (uncurry parseGroupWithId) groupMap
-  
+
     where
       parseGroupWithId groupId groupJson = (groupId &) <$> parseGroup groupJson
 
       parseGroup = withObject "Group object" $ \v -> do
-        Group 
+        Group
           <$> v .: "name"
           <*> v .: "lights"
           <*> ((Left <$> v .: "type") <|> (Right <$> v .: "type"))
@@ -245,17 +245,17 @@ instance FromJSON Groups where
           <*> (fromMaybe False <$> v .:? "recycle")
 
 instance FromJSON NormalGroup where
-  parseJSON = withText "Normal group type" $ \case 
+  parseJSON = withText "Normal group type" $ \case
     "Room" -> pure Room
     "LightGroup" -> pure LightGroup
     v -> fail $ "Unknown normal group type. Should be either 'Room' or 'LightGroup': " ++ Text.unpack v
 
 instance FromJSON LuminaireGroup where
-  parseJSON = withText "Luminaire group type" $ \case 
+  parseJSON = withText "Luminaire group type" $ \case
     "Luminaire" -> pure Luminaire
     "Lightsource" -> pure LuminairePart
     v -> fail $ "Unknown luminaire group type. Should be either 'Luminaire' or 'Lightsource': " ++ Text.unpack v
-    
+
 instance FromJSON GroupState where
   parseJSON = withObject "Group state object" $ \o -> do
     anyOn <- o .: "any_on"
@@ -289,7 +289,7 @@ groupClasses = [
   , ("Driveway", DrivewayGroup)
   , ("Carport", CarportGroup)
   , ("Other", OtherGroup)
-  ] 
+  ]
 
 reverseGroupClasses :: [(GroupClass, Text)]
 reverseGroupClasses = swap <$> groupClasses
@@ -302,10 +302,10 @@ instance ToPathSegment GroupID where
 instance ToJSON GroupChanges where
   toJSON (GroupChanges changeSet) = object $ changeKeyValue <$> Set.toList changeSet
     where
-      changeKeyValue (ChangeName (GroupName newName)) = 
+      changeKeyValue (ChangeName (GroupName newName)) =
         ("name", toJSON newName)
-      changeKeyValue (ChangeGroupMembers members) = 
+      changeKeyValue (ChangeGroupMembers members) =
         ("lights", toJSON members)
-      changeKeyValue (ChangeClass groupClass) = 
+      changeKeyValue (ChangeClass groupClass) =
         ("class", toJSON $ fromJust $ lookup groupClass reverseGroupClasses)
-      
+

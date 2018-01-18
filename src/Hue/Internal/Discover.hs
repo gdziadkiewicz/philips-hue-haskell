@@ -6,10 +6,10 @@
 -- Stability: experimental
 --
 -- Utility functions for automatically discovering a Bridge IP address.
--- 
+--
 -- This is an internal module.
--- 
--- Please use "Hue.Discover" instead. 
+--
+-- Please use "Hue.Discover" instead.
 module Hue.Internal.Discover (
     upnpDiscoverBridges
   , XMLParseException(..)
@@ -53,7 +53,7 @@ import Hue.Internal
 
 -- | Discover bridges on the local network via UPnP / SSDP.
 -- Listens for 5 seconds for any responses.
--- 
+--
 -- For any bridge that responds, this function fetches it's @description.xml@ via HTTP
 -- and parses the serial number and icon URL.
 upnpDiscoverBridges :: IO [Bridge]
@@ -66,22 +66,22 @@ upnpDiscoverBridges = do
   bridgLocations <- Set.toList <$> receiveBridgeLocation startTime hSock
   hClose hSock
   traverse fetchBridge bridgLocations
-  
-  where 
+
+  where
     fetchBridge :: BridgeLocation -> IO Bridge
     fetchBridge BridgeLocation{..} = do
       response <- httpLBS httpReq
       let bridge = parseDescriptionXML $ toStrict $ getResponseBody response
-      either throw pure bridge 
+      either throw pure bridge
 
       where
         Just host = uriRegName <$> uriAuthority getBridgeLocation
-        httpReq = setRequestHost (fromString host) 
-                $ setRequestPath (fromString $ uriPath getBridgeLocation) 
+        httpReq = setRequestHost (fromString host)
+                $ setRequestPath (fromString $ uriPath getBridgeLocation)
                 $ defaultRequest
-          
+
     receiveBridgeLocation :: UTCTime -> Handle -> IO (Set BridgeLocation)
-    receiveBridgeLocation startTime hSock = do 
+    receiveBridgeLocation startTime hSock = do
       now <- getCurrentTime
       if diffUTCTime now startTime > 5
         then pure Set.empty
@@ -92,8 +92,8 @@ upnpDiscoverBridges = do
           pure $ bridge <> moreBridges
 
     processMessage :: ByteString -> Maybe BridgeLocation
-    processMessage msg = 
-      BridgeLocation 
+    processMessage msg =
+      BridgeLocation
       <$> Map.lookup "hue-bridgeid" fieldsMap
       <*> location
       where
@@ -103,14 +103,14 @@ upnpDiscoverBridges = do
         fieldsMap = Map.fromList packetFields
         location = Map.lookup "LOCATION" fieldsMap >>= parseURI . Text.unpack
 
-    ssdpDiscoverRequest = 
+    ssdpDiscoverRequest =
                "M-SEARCH * HTTP/1.1\n"
       `append` "HOST: 239.255.255.250\n"
       `append` "MAN: ssdp:discover\n"
       `append` "MX: 5\n"
       `append` "ST: ssdp:all\n"
 
-    addrHints = defaultHints { 
+    addrHints = defaultHints {
         addrFlags = []
       , addrSocketType = Datagram
       , addrFamily = AF_INET
@@ -142,7 +142,7 @@ parseDescriptionXML str = do
 
   serialNumber <- findChild "device" root
     >>= findChild "serialNumber"
-    >>= pure . decodeUtf8 . XML.inner 
+    >>= pure . decodeUtf8 . XML.inner
 
   iconURL <- findChild "device" root
     >>= findChild "iconList"
@@ -151,7 +151,7 @@ parseDescriptionXML str = do
     >>= pure . decodeUtf8 . XML.inner
 
   pure $ Bridge (BridgeIP bridgeIP) serialNumber iconURL
-  
+
   where
     findChild :: ByteString -> XML.Node -> Either XMLParseException XML.Node
     findChild name node = case XML.childrenBy node name of
@@ -161,5 +161,5 @@ parseDescriptionXML str = do
       (x:_) -> Right x
 
     onExcept :: ByteString -> Maybe a -> Either XMLParseException a
-    onExcept _ (Just a) = Right a 
+    onExcept _ (Just a) = Right a
     onExcept err Nothing = Left $ XMLParseException $ "Error parsing Bridge description.xml:\n" `append` err

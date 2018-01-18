@@ -1,15 +1,15 @@
 -- |
--- Module: Hue.Internal.Request 
+-- Module: Hue.Internal.Request
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
--- Types to build representations for Hue API requests. 
--- 
+-- Types to build representations for Hue API requests.
+--
 -- This is an internal module.
--- 
--- Please use "Hue.Request" instead. 
+--
+-- Please use "Hue.Request" instead.
 {-# LANGUAGE GADTs #-}
 module Hue.Internal.Request (
   module Hue.Internal.Request
@@ -89,11 +89,11 @@ parseResult = ParseResult
 
 
 -- | Construct a request from scratch.
--- 
+--
 -- This function gives you the opportunity to talk directly to any bridge endpoint
 -- and provide or get data in your own types.
--- 
--- Pre-defined requests can be found in the module that they functionally belong to, for 
+--
+-- Pre-defined requests can be found in the module that they functionally belong to, for
 -- example see 'Hue.Light.lights'.
 request :: StdMethod -> Body body -> Result result -> RequestPath -> Hue result
 request method b result rPath = case result of
@@ -107,7 +107,7 @@ request method b result rPath = case result of
     mkRequest = do
       path <- requestPath rPath . unCredentials . configCredentials <$> ask
       ip <- ipAddress . configIP <$> ask
-      pure 
+      pure
         $ setRequestPath path
         $ setRequestMethod (fromString $ show method)
         $ setRequestHost ip
@@ -121,15 +121,15 @@ request method b result rPath = case result of
     performRequest req = do
       response <- liftIO $ httpLBS req
       let responseText = toStrict $ getResponseBody response
-      case eitherDecodeStrict' responseText of 
+      case eitherDecodeStrict' responseText of
         Left err -> throwParseError err responseText
         Right (HueErrorResponse err) -> throwError $ HueApiException err
         Right (HueResponse a) -> pure a
 
-    throwParseError :: String 
-                    -> ByteString 
+    throwParseError :: String
+                    -> ByteString
                     -> Hue a
-    throwParseError err responseText = 
+    throwParseError err responseText =
       liftIO $ throw $ Hue.Internal.JSONParseException $
           "Error parsing bridge response: \n\t"
           `append` Text.pack err
@@ -141,13 +141,13 @@ request method b result rPath = case result of
 data RequestPath = RequestPath [PathSegment]
 
 -- | The base path for most useful endpoints:
--- 
+--
 -- @/api@
 api :: RequestPath
 api = root /: "api"
 
 -- | The root API endpoint.
--- 
+--
 -- This serves as base to construct all other endpoints from.
 root :: RequestPath
 root = RequestPath []
@@ -165,26 +165,26 @@ credentials = CredentialsSegment
 -- | Append a textual segment to a request path.
 -- This function exists to avoid ambiguities with OverloadedStrings.
 (/:) :: RequestPath
-      -> Text 
+      -> Text
       -> RequestPath
 (/:) = (/~)
 
 -- | Append a segment to a request path
-(/~) :: (ToPathSegment s) 
+(/~) :: (ToPathSegment s)
       => RequestPath
-      -> s 
+      -> s
       -> RequestPath
 RequestPath prev /~ segment = RequestPath (toSegment segment:prev)
 
 -- | Return the path that the request currently represents.
--- 
+--
 -- URL-encodes each segment.
 requestPath :: RequestPath
              -> Text -- ^ Credentials needed to query most endpoints.
              -> ByteString
 requestPath (RequestPath segments) creds
-  = toByteString 
-  $ encodePathSegments 
+  = toByteString
+  $ encodePathSegments
   $ segmentToText creds
   <$> reverse segments
   where
@@ -193,12 +193,12 @@ requestPath (RequestPath segments) creds
 
 -- | Class for all things that can be turned into a PathSegment.
 -- Anything that has a 'Text'ual representation could have an instance.
--- When implementing an instance of this class, you should probably first 
+-- When implementing an instance of this class, you should probably first
 -- convert your type to 'Text' and call 'toSegment' on that.
--- 
+--
 -- Any textual segment is URL-encoded before a request is performed.
 class ToPathSegment a where
-  -- | Encode a datatype in an API path segment. 
+  -- | Encode a datatype in an API path segment.
   toSegment :: a -> PathSegment
 
 -- | Identity
@@ -208,7 +208,7 @@ instance ToPathSegment PathSegment where
 -- | Any 'Text' can be converted to an PathSegment.
 instance ToPathSegment Text where
   toSegment = TextSegment
-  
+
 
 -- | Credentials can be used as part of an API path.
 instance ToPathSegment HueCredentials where

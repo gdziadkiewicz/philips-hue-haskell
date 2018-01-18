@@ -1,15 +1,15 @@
 -- |
--- Module: Hue.Internal.Light 
+-- Module: Hue.Internal.Light
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
 -- Types representing commands to change the state of a light.]
--- 
+--
 -- This is an internal module.
--- 
--- Please use "Hue.Light" instead. 
+--
+-- Please use "Hue.Light" instead.
 module Hue.Internal.Light where
 
 import Prelude hiding (fail)
@@ -44,7 +44,7 @@ lights :: Hue [Light]
 lights = unLights <$> get parseResult (api /~ credentials /: "lights")
 
 -- | Fetch a single light by it's name.
--- 
+--
 -- 'Nothing' when there exists no light with the given name.
 lightWithName :: Text -> Hue (Maybe Light)
 lightWithName n = find ((LightName n ==) . lightName) <$> lights
@@ -57,20 +57,20 @@ allLightsWithName n = filter ((LightName n ==) . lightName) <$> lights
 -- ----------------------------------------------------------------
 
 -- | To change the state of a single light, a 'SetLightState' object
--- has to be sent with the 'setLight' request.  
--- 
+-- has to be sent with the 'setLight' request.
+--
 -- Example:
--- 
+--
 -- @
---  lightKitchen = lightWithName \"Kitchen\" 
+--  lightKitchen = lightWithName \"Kitchen\"
 --               >>= traverse (setLight on)
 -- @
--- 
--- Note that because 'SetLightState' represents a set of state 
+--
+-- Note that because 'SetLightState' represents a set of state
 -- changes, it also supports monoidial combining:
---  
+--
 -- @
---  veryPurpleKitchen = lightWithName \"Kitchen\" 
+--  veryPurpleKitchen = lightWithName \"Kitchen\"
 --                    >>= traverse setLight (on <> brightness 255 <> setHue 48500 <> saturation 255)
 -- @
 --
@@ -143,7 +143,7 @@ increaseSaturation = mkSetLightState . IncSaturation . fromEnum
 decreaseSaturation :: Word8 -> SetLightState
 decreaseSaturation = mkSetLightState . IncSaturation . negate . fromEnum
 
--- | Set the [CIE color space coordinates](https://www.developers.meethue.com/documentation/core-concepts#color_gets_more_complicated) 
+-- | Set the [CIE color space coordinates](https://www.developers.meethue.com/documentation/core-concepts#color_gets_more_complicated)
 -- to a specific value.
 xy :: (Float, Float) -> SetLightState
 xy = mkSetLightState . SetXY
@@ -160,7 +160,7 @@ increaseXY = mkSetLightState . IncXY
 decreaseXY :: (Float, Float) -> SetLightState
 decreaseXY (x,y) = mkSetLightState $ IncXY $ (negate x, negate y)
 
--- | Set the [Mired color temperature](https://en.wikipedia.org/wiki/Mired) 
+-- | Set the [Mired color temperature](https://en.wikipedia.org/wiki/Mired)
 -- to a specific value.
 temperature :: Word16 -> SetLightState
 temperature = mkSetLightState . SetTemperature
@@ -185,7 +185,7 @@ alert :: Alert -> SetLightState
 alert = mkSetLightState . SetAlert
 
 -- | Make the light loop through colors.
--- 
+--
 -- Only supported on lights with @'lightType' >= 'ColorLight'@.
 colorLoop :: SetLightState
 colorLoop = mkSetLightState $ SetEffect ColorLoop
@@ -200,17 +200,17 @@ noEffect = mkSetLightState $ SetEffect NoEffect
 -- ----------------------------------------------------------------
 
 -- | Change the name of a light.
--- 
--- A light can have its name changed even when it is unreachable 
+--
+-- A light can have its name changed even when it is unreachable
 -- or turned off.
 renameLight :: LightName -> Light -> Hue ()
 renameLight name Light{..} = put (body name) ignoreResult $ api /~ credentials /: "lights" /~ lightId
 
 -- | Request for deleting a light.
--- 
+--
 -- The light will be removed from the list of lights from and any
 -- groups in the bridge. This will cause Scenes to be updated.
--- 
+--
 -- Note that the device is not physically removed from the ZigBee
 -- network.
 deleteLight :: Light -> Hue ()
@@ -223,27 +223,27 @@ deleteLight Light{..} = delete ignoreResult $ api /~ credentials /: "lights" /~ 
 
 -- | Starts a search for new lights. Also finds switches like the
 -- Hue tap.
--- 
+--
 -- The bridge will open the network for 40s. The overall search
 -- might take longer since the configuration of (multiple) new
 -- devices can take longer. If many devices are found the command
 -- will have to be issued a second time after discovery time has
 -- elapsed. If the command is received again during search the
 -- search will continue for at least an additional 40s.
--- 
+--
 -- When the search has finished, new lights will be available using
 -- the 'newLights' request. In addition, the new lights will now
--- be available by calling 'lights' or 'fetchLights' or by calling 
--- get group attributes on group 0. 
--- 
--- Group 0 is a special group that cannot be 
+-- be available by calling 'lights' or 'fetchLights' or by calling
+-- get group attributes on group 0.
+--
+-- Group 0 is a special group that cannot be
 -- deleted and will always contain all lights known by the bridge.
 searchNewLights ::  Hue ()
 searchNewLights = post noBody ignoreResult $ api /~ credentials /: "lights"
 
 -- | Gets a 'ScanResult' since the last time 'searchNewLights'
 -- was requested.
--- 
+--
 -- The returned scan results are reset when a new scan is started.
 newLights :: Hue ScanResult
 newLights = get parseResult $ api /~ credentials /: "lights" /: "new"
@@ -254,7 +254,7 @@ newLights = get parseResult $ api /~ credentials /: "lights" /: "new"
 -- ----------------------------------------------------------------
 
 -- | Represents a single light bulb.
-data Light  = Light { 
+data Light  = Light {
     lightState :: LightState -- ^ The current state of a bulb.
   , lightName :: LightName -- ^ Get the current display name of a bulb.
   , lightType :: LightType -- ^ Get the supported features of a bulb.
@@ -296,7 +296,7 @@ data LightType =
 -- even thought the light is tuned off.
 data LightState = LightState {
     isOn :: Bool -- ^ Whether the light is on or not.
-  , lightBrightness :: Word8 -- ^ The currently set brightness.  
+  , lightBrightness :: Word8 -- ^ The currently set brightness.
   , alertState :: Alert -- ^ Whether the light is performing an @alert@ or not
   , isReachable :: Bool -- ^ Whether the light is reachable or not.
   , colorTemperature :: Maybe Word16 -- ^ Current [Mired color temperature](https://en.wikipedia.org/wiki/Mired).
@@ -329,7 +329,7 @@ data ScanResult = ScanResult {
 } deriving (Eq, Show)
 
 -- | The state of a scan for new lights.
-data ScanStatus = 
+data ScanStatus =
     NoScanResult -- ^ No scan has been perfomed recently.
   | ScanActive -- ^ A scan is currently active.
   | LastScan LocalTime -- ^ A scan was last perfomed at 'LocalTime'.
@@ -351,7 +351,7 @@ data SetStateComponent =
     SetOn Bool
   | SetBrightness Word8
   | IncBrightness Int
-  | SetHue Word16 
+  | SetHue Word16
   | IncHue Int
   | SetSaturation Word8
   | IncSaturation Int
@@ -364,14 +364,14 @@ data SetStateComponent =
   deriving (Eq, Ord, Show)
 
 -- | Turn the light into @alert@ mode, making it flash for one or more cycles.
-data Alert = 
+data Alert =
     NoAlert
   | OneCycle
   | MultipleCycles
   deriving (Eq, Ord, Show)
 
--- | Hue built-in gimmick that lets the light loop through it's color range.   
-data Effect = 
+-- | Hue built-in gimmick that lets the light loop through it's color range.
+data Effect =
     NoEffect
   | ColorLoop
   deriving (Eq, Ord, Show)
@@ -390,18 +390,18 @@ instance FromJSON Lights where
   parseJSON o = do
     lightMap :: [(LightID, Value)] <- Map.toList <$> parseJSON o
     Lights <$> traverse (\(lightId, lightJson) -> (&) lightId <$> parseLight lightJson) lightMap
-  
+
     where
       parseLight = withObject "Light object" $ \v -> do
         state <- v .: "state"
-        Light 
+        Light
           <$> parseLightState state
           <*> v .: "name"
           <*> v .: "type"
           <*> v .: "modelid"
           <*> v .: "swversion"
           <*> v .: "manufacturername"
-        
+
         where
           parseLightState v = do
             isOn <- v .: "on"
@@ -412,7 +412,7 @@ instance FromJSON Lights where
               <*> v .: "reachable"
               <*> v .:? "ct"
               <*> parseColorState v
-            
+
           parseColorState v = do
             h <- v .:? "hue"
             sat <- v .:? "sat"
@@ -423,10 +423,10 @@ instance FromJSON Lights where
 
 -- | Parse a LightID from Text
 instance FromJSON LightID where
-  parseJSON = withText "LightID" $ 
-    either 
-      (\err -> fail $ "Unable to parse light id: " ++ err) 
-      (pure . LightID . fst) 
+  parseJSON = withText "LightID" $
+    either
+      (\err -> fail $ "Unable to parse light id: " ++ err)
+      (pure . LightID . fst)
     . decimal
 
 instance ToJSON LightName where
@@ -442,7 +442,7 @@ instance FromJSON LightType where
     _ -> pure $ OtherLightType x
 
 instance FromJSON ColorMode where
-  parseJSON = withText "Light colormode" $ \case 
+  parseJSON = withText "Light colormode" $ \case
     "hs" -> pure HueSaturationMode
     "xy" -> pure XYMode
     "ct" -> pure ColorTemperatureMode
@@ -454,14 +454,14 @@ instance FromJSON ScanResult where
     lightMap <- parseJSON $ Object $ HashMap.delete "lastscan" v
     new <- Map.toList <$> traverse parseName lightMap
     pure $ ScanResult new lastScanTime
-    where 
+    where
       parseName = withObject "Light name object" (\v' -> LightName <$> v' .: "name")
 
 instance FromJSON ScanStatus where
   parseJSON = withText "light scan status" $ \case
     "none" -> pure NoScanResult
     "active" -> pure ScanActive
-    time -> LastScan <$> parseJSON (String time) 
+    time -> LastScan <$> parseJSON (String time)
 
 -- | LightID can be used as part of an API path.
 instance ToPathSegment LightID where
@@ -469,7 +469,7 @@ instance ToPathSegment LightID where
 
 
 instance FromJSON Alert where
-  parseJSON = withText "Light alert status" $ \case 
+  parseJSON = withText "Light alert status" $ \case
     "none" -> pure NoAlert
     "select" -> pure OneCycle
     "lselect" -> pure MultipleCycles
@@ -479,20 +479,20 @@ instance ToJSON Alert where
   toJSON NoAlert = String "none"
   toJSON OneCycle = String "select"
   toJSON MultipleCycles = String "lselect"
-  
+
 instance FromJSON Effect where
-  parseJSON = withText "Light effect" $ \case 
+  parseJSON = withText "Light effect" $ \case
     "none" -> pure NoEffect
     "colorloop" -> pure ColorLoop
     x -> fail $ "Unknown light effect: " ++ Text.unpack x
-    
+
 instance ToJSON Effect where
   toJSON NoEffect = String "none"
   toJSON ColorLoop = String "colorloop"
 
 instance ToJSON SetLightState where
-  toJSON (SetLightState components) = 
-    object $ componentToTuple <$> Set.toList components 
+  toJSON (SetLightState components) =
+    object $ componentToTuple <$> Set.toList components
     where
       componentToTuple (SetOn onState) = ("on", toJSON onState)
       componentToTuple (SetBrightness bri) = ("bri", toJSON bri)
@@ -508,4 +508,3 @@ instance ToJSON SetLightState where
       componentToTuple (SetAlert a) = ("alert", toJSON a)
       componentToTuple (SetEffect e) = ("effect", toJSON e)
 
-  

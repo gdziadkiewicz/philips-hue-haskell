@@ -1,5 +1,5 @@
--- | 
--- Module: Hue.Auth 
+-- |
+-- Module: Hue.Auth
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
@@ -10,6 +10,6 @@
 module Hue.Auth (
   authenticate
 , registerApp
-) where 
-  
+) where
+
 import Hue.Internal.Auth

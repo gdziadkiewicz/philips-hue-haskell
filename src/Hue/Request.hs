@@ -1,11 +1,11 @@
 -- |
--- Module: Hue.Request 
+-- Module: Hue.Request
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
--- Types to build representations for Hue API requests. 
+-- Types to build representations for Hue API requests.
 module Hue.Request (
 -- * Constructing requests
   get
@@ -24,7 +24,7 @@ module Hue.Request (
 -- * Constructing the API path
 , RequestPath
 , api
-, root 
+, root
 , (/:)
 , (/~)
 -- ** Adding custom data to the request path
@@ -34,6 +34,6 @@ module Hue.Request (
 , toSegment
 -- * Inspecting a Request
 , requestPath
-) where 
-  
+) where
+
 import Hue.Internal.Request

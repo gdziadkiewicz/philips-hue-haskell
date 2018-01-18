@@ -1,15 +1,15 @@
 -- |
--- Module: Hue.Internal 
+-- Module: Hue.Internal
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
 --
 -- Base functions and types to perform requests against the Hue bridge.
--- 
+--
 -- This is an internal module.
--- 
--- Please use "Hue" instead. 
+--
+-- Please use "Hue" instead.
 module Hue.Internal where
 
 import Prelude hiding (putStrLn)
@@ -44,10 +44,10 @@ newtype Hue a = Hue {
   , MonadError HueApiException)
 
 evalHue :: MonadIO m => HueConfig -> Hue a -> m (Either HueApiException a)
-evalHue config h = do 
+evalHue config h = do
   e <- unwrapHue config h
-  case e of 
-    Left (JSONParseException err) -> error $ Text.unpack err 
+  case e of
+    Left (JSONParseException err) -> error $ Text.unpack err
     Right x -> pure x
   where
     unwrapHue c = liftIO . try . runExceptT . flip runReaderT c . unHue
@@ -56,8 +56,8 @@ evalHue config h = do
 unsafeEvalHue :: MonadIO m => HueConfig -> Hue a -> m a
 unsafeEvalHue config h = do
   e <- unwrapHue config h
-  case e of 
-    Left (JSONParseException err) -> error $ Text.unpack err 
+  case e of
+    Left (JSONParseException err) -> error $ Text.unpack err
     Right (Left err) -> error $ show err
     Right (Right a) -> pure a
   where
@@ -71,9 +71,9 @@ unsafeEvalHue config h = do
 -- ----------------------------------------------------------------
 
 -- | Configuration necessary to query the bridge.
--- 
+--
 -- Contains the bridge IP address and (optionally) credentials needed to turn lights on and off.
--- 
+--
 -- See "Hue.Config"
 data HueConfig = HueConfig {
   configIP :: BridgeIP
@@ -82,14 +82,14 @@ data HueConfig = HueConfig {
 
 -- | Used to read config from file.
 instance FromJSON HueConfig where
-  parseJSON = withObject "HueConfig object" $ \o -> 
-    HueConfig 
-    <$> o .: "bridge-ip-address" 
+  parseJSON = withObject "HueConfig object" $ \o ->
+    HueConfig
+    <$> o .: "bridge-ip-address"
     <*> (HueCredentials <$> o .: "app-credentials")
 
 -- | Used to write the config to file.
 instance ToJSON HueConfig where
-  toJSON (HueConfig ip creds) = object 
+  toJSON (HueConfig ip creds) = object
     [ ("bridge-ip-address", toJSON ip)
     , ("app-credentials", toJSON creds)
     ]
@@ -106,7 +106,7 @@ instance FromJSON BridgeIP where
 -- | Used to read the bridge IP to a config file
 instance ToJSON BridgeIP where
   toJSON (BridgeIP ip) = String $ decodeUtf8 ip
-  
+
 -- | Identifies a bridge uniquely.
 data Bridge = Bridge {
     bridgeIP :: BridgeIP
@@ -145,7 +145,7 @@ newtype HueDeviceType = HueDeviceType Text deriving (Show)
 
 -- | We're able to send a device type to the brige for registration.
 instance ToJSON HueDeviceType where
-  toJSON (HueDeviceType devType) = toJSON $ Map.fromList [("devicetype" :: Text, devType)]  
+  toJSON (HueDeviceType devType) = toJSON $ Map.fromList [("devicetype" :: Text, devType)]
 
 
 -- ----------------------------------------------------------------
@@ -154,9 +154,9 @@ instance ToJSON HueDeviceType where
 -- ----------------------------------------------------------------
 
 -- | Representation for all responses from the bridge.
-data HueResponse a = 
+data HueResponse a =
     HueErrorResponse [HueError]
-  | HueResponse a 
+  | HueResponse a
   deriving (Show)
 
 -- | Any response from the bridge can be decoded.
@@ -183,7 +183,7 @@ instance (FromJSON a) => FromJSON (HueSuccess a) where
 data HueError = HueError Int Text deriving (Show)
 
 -- | Error responses can be decoded.
-instance FromJSON HueError where 
+instance FromJSON HueError where
   parseJSON = withObject "HueError object" $ \o -> do
     e <- o .: "error"
     HueError <$> e .: "type" <*> e .: "description"

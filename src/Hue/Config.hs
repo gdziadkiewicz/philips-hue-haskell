@@ -1,5 +1,5 @@
--- | 
--- Module: Hue.Config 
+-- |
+-- Module: Hue.Config
 -- Copyright: (c) 2017 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
@@ -10,6 +10,6 @@ module Hue.Config (
     configWithIP
   , getHueConfig
   , interactiveConfigureHue
-) where 
-  
+) where
+
 import Hue.Internal.Config
