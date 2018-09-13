@@ -37,6 +37,7 @@ module Hue.Light (
 , lightType
 , modelid
 , swversion
+, lightManufacturer
 , lightId
 , LightState
 , isOn
