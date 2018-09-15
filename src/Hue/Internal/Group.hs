@@ -1,6 +1,6 @@
 -- |
 -- Module: Hue.Internal.Group
--- Copyright: (c) 2017 Thomas Smith
+-- Copyright: (c) 2018 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
@@ -20,7 +20,6 @@ import qualified Data.Text as Text
 
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Data.Maybe
@@ -235,7 +234,7 @@ instance FromJSON Groups where
     where
       parseGroupWithId groupId groupJson = (groupId &) <$> parseGroup groupJson
 
-      parseGroup = withObject "Group object" $ \v -> do
+      parseGroup = withObject "Group object" $ \v ->
         Group
           <$> v .: "name"
           <*> v .: "lights"

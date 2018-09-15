@@ -1,6 +1,6 @@
 -- |
 -- Module: Hue.Internal.Light
--- Copyright: (c) 2017 Thomas Smith
+-- Copyright: (c) 2018 Thomas Smith
 -- License: BSD3
 -- Maintainer: Thomas Smith <tnsmith@live.nl>
 -- Stability: experimental
@@ -340,7 +340,7 @@ data ScanStatus =
 --   Internal types
 -- ----------------------------------------------------------------
 -- | A set of state change commands to send to the bridge.
-newtype SetLightState = SetLightState (Set SetStateComponent) deriving (Show, Monoid)
+newtype SetLightState = SetLightState (Set SetStateComponent) deriving (Show, Semigroup, Monoid)
 
 -- | Convenience constructor for 'SetLightState'
 mkSetLightState :: SetStateComponent -> SetLightState
