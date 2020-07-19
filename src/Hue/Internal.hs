@@ -41,7 +41,8 @@ newtype Hue a = Hue {
   , Monad
   , MonadIO
   , MonadReader HueConfig
-  , MonadError HueApiException)
+  , MonadError HueApiException
+  , MonadFail)
 
 evalHue :: MonadIO m => HueConfig -> Hue a -> m (Either HueApiException a)
 evalHue config h = do
