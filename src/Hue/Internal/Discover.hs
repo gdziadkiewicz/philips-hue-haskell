@@ -12,12 +12,13 @@
 -- Please use "Hue.Discover" instead.
 module Hue.Internal.Discover (
     upnpDiscoverBridges
+  , nupnpDiscoverBridges
   , XMLParseException(..)
   , parseDescriptionXML
 ) where
 
 import Prelude hiding (putStr, putStrLn)
-import Network.Socket hiding (send, sendTo, recv)
+import Network.Socket
 import Network.Socket.ByteString
 import Network.HTTP.Simple
 import Network.URI
@@ -29,7 +30,7 @@ import Data.Time.Clock
 
 import Data.Typeable
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid()
 import Data.Bifunctor
 import Data.String
 
@@ -51,6 +52,27 @@ import Control.Exception.Safe
 
 import Hue.Internal
 
+-- | Discover bridges on the local network via N-UPnP.
+-- Listens for 8 seconds for any responses.
+--
+-- For any bridge that responds, this function fetches it's @description.xml@ via HTTP
+-- and parses the serial number and icon URL.
+nupnpDiscoverBridges :: IO [Bridge]
+nupnpDiscoverBridges = do
+  response <- httpJSON "https://discovery.meethue.com"
+  case getResponseStatusCode response of
+    200 ->
+        let responseContent = getResponseBody response :: [Map.Map Text Text]
+            toMaybeBridgeLocation o = do
+              bridgeId <- o Map.!? "id"
+              bridgeIp <- o Map.!? "internalipaddress"
+              bridgeIpDescriptionXmlUri <- parseURI . Text.unpack $ ("http://" <> bridgeIp <> "/description.xml")
+              return $ BridgeLocation bridgeId bridgeIpDescriptionXmlUri
+            bridgLocations  = mapMaybe toMaybeBridgeLocation responseContent
+        in traverse fetchBridge bridgLocations
+    _ -> return []
+
+
 -- | Discover bridges on the local network via UPnP / SSDP.
 -- Listens for 5 seconds for any responses.
 --
@@ -68,18 +90,6 @@ upnpDiscoverBridges = do
   traverse fetchBridge bridgLocations
 
   where
-    fetchBridge :: BridgeLocation -> IO Bridge
-    fetchBridge BridgeLocation{..} = do
-      response <- httpLBS httpReq
-      let bridge = parseDescriptionXML $ toStrict $ getResponseBody response
-      either throw pure bridge
-
-      where
-        Just host = uriRegName <$> uriAuthority getBridgeLocation
-        httpReq = setRequestHost (fromString host)
-                $ setRequestPath (fromString $ uriPath getBridgeLocation)
-                $ defaultRequest
-
     receiveBridgeLocation :: UTCTime -> Handle -> IO (Set BridgeLocation)
     receiveBridgeLocation startTime hSock = do
       now <- getCurrentTime
@@ -117,6 +127,18 @@ upnpDiscoverBridges = do
       , addrProtocol = udpProtocolNumber }
 
     udpProtocolNumber = 17
+
+fetchBridge :: BridgeLocation -> IO Bridge
+fetchBridge BridgeLocation{..} = do
+  response <- httpLBS httpReq
+  let bridge = parseDescriptionXML $ toStrict $ getResponseBody response
+  either throw pure bridge
+
+  where
+    Just host = uriRegName <$> uriAuthority getBridgeLocation
+    httpReq = setRequestHost (fromString host)
+            $ setRequestPath (fromString $ uriPath getBridgeLocation)
+            $ defaultRequest
 
 -- | Identifies the network location of a bridge.
 -- This data is directly constructed from a SSDP response.

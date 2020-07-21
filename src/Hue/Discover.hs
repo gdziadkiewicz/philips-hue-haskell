@@ -7,7 +7,8 @@
 --
 -- Automatically discover Hue bridges on a local network.
 module Hue.Discover (
-    upnpDiscoverBridges
+     upnpDiscoverBridges
+    ,nupnpDiscoverBridges
 ) where
 
 import Hue.Internal.Discover

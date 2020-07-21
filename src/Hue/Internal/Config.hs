@@ -61,7 +61,7 @@ interactiveConfigureHue = do
   liftIO $ putStrLn
     "It seems like there is no configuration present.\n\
     \Searching for bridge, this may take a minute..."
-  Bridge ip serial _ <- MaybeT $ listToMaybe <$> upnpDiscoverBridges
+  Bridge ip serial _ <- MaybeT $ listToMaybe <$> (upnpDiscoverBridges <> nupnpDiscoverBridges)
   liftIO $ putStrLn $ "Found bridge with id: " `Text.append` serial
   credentials <- unsafeEvalHue (configWithIP ip) registerApp
   let config = HueConfig ip credentials
