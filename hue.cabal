@@ -1,12 +1,12 @@
 name:                hue
-version:             0.1.0
+version:             0.0.2.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/txsmith/hue#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Thomas Smith
-maintainer:          tnsmith@live.nl
+author:              Thomas Smith, Grzegorz Dziadkiewicz
+maintainer:          tnsmith@live.nl, grzegorzdziadkiewicz@gmail.com
 copyright:           2018 Thomas Smith
 category:            Web
 build-type:          Simple
