@@ -31,6 +31,7 @@ import Control.Applicative
 import Control.Exception.Safe
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Monad.Fail
 
 -- | The Hue Monad.
 newtype Hue a = Hue {

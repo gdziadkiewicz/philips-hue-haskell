@@ -1,9 +1,10 @@
+cabal-version:       2.4
 name:                hue
 version:             0.1.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/txsmith/hue#readme
-license:             BSD3
+license:             BSD-3-Clause
 license-file:        LICENSE
 author:              Thomas Smith
 maintainer:          tnsmith@live.nl
@@ -11,7 +12,6 @@ copyright:           2018 Thomas Smith
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
-cabal-version:       >=1.10
 description:
     Control Philips Hue lights with Haskell.
     To get started, see the Hue module.
@@ -35,7 +35,7 @@ library
                      , Hue.Internal.Request
                      , Hue.Internal.Discover
   other-modules:       Hue.Examples
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       base >= 4.12 && < 5
                       , http-client
                       , http-conduit
                       , http-types
