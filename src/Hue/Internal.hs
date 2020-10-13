@@ -31,6 +31,7 @@ import Control.Applicative
 import Control.Exception.Safe
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Monad.Fail
 
 -- | The Hue Monad.
 newtype Hue a = Hue {
@@ -41,7 +42,8 @@ newtype Hue a = Hue {
   , Monad
   , MonadIO
   , MonadReader HueConfig
-  , MonadError HueApiException)
+  , MonadError HueApiException
+  , MonadFail)
 
 evalHue :: MonadIO m => HueConfig -> Hue a -> m (Either HueApiException a)
 evalHue config h = do
