@@ -1,5 +1,7 @@
 # Philips Hue API wrapper
 
+[![GitHub CI](https://github.com/gdziadkiewicz/philips-hue-haskell/workflows/CI/badge.svg)](https://github.com/gdziadkiewicz/philips-hue-haskell/actions)
+
 Control Philips Hue lights with Haskell.
 
 To get started, import the `Hue` module.
