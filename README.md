@@ -24,6 +24,11 @@ API Coverage
   - [x] Set group state
   - [x] Delete group
 - [ ] **Schedules**
+  - [ ] Get all schedules
+  - [ ] Create schedule
+  - [ ] Get schedule attributes
+  - [ ] Set schedule attributes
+  - [ ] Delete schedule
 - [ ] **Scenes**
 - [ ] **Sensors**
 - [ ] **Rules**
