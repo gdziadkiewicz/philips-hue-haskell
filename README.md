@@ -18,7 +18,7 @@ API Coverage
   - [x] Delete light
 - [x] **Groups**
   - [x] Get all groups
-  - [x] Create group
+  - [ ] Create group
   - [x] Get group attributes
   - [x] Set group attributes
   - [x] Set group state
