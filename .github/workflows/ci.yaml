@@ -65,11 +65,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        stack: [2.5.1]
+        os: [ubuntu-latest, macOS-latest, windows-latest]
         ghc:
           - 8.6.5
           - 8.8.4
+          - 8.10.7
+          - 9.0.1
         exclude:
           - os: macOS-latest
             ghc: 8.6.5
@@ -84,7 +85,6 @@ jobs:
       name: Setup Haskell Stack
       with:
         ghc-version: ${{ matrix.ghc }}
-        stack-version: ${{ matrix.stack }}
         stack-no-global: true
         enable-stack: true
 
