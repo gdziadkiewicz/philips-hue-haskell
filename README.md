@@ -26,6 +26,13 @@ API Coverage
 - [ ] **Schedules**
 - [ ] **Scenes**
 - [ ] **Sensors**
+  - [x] Get all sensors
+  - [x] Get new sensors
+  - [x] Search for sensor
+  - [ ] Get sensor attributes/state/config
+  - [ ] Set sensor attributes/state/config
+  - [x] Rename sensor
+  - [x] Delete sensor
 - [ ] **Rules**
 - [ ] **Configuration**
 - [ ] **Resourcelinks**
