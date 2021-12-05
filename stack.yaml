@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: nightly-2021-10-29
+resolver: lts-18.18
 # User packages to be built.
 # Various formats can be used as shown in the example below.
 #
@@ -41,7 +41,9 @@ packages:
 extra-deps: []
 
 # Override default flag values for local packages and extra-deps
-flags: {}
+flags:
+  mintty:
+    Win32-2-13-1: false
 
 # Extra package databases containing global packages
 extra-package-dbs: []
