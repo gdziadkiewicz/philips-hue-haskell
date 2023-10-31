@@ -18,6 +18,7 @@ jobs:
           - 8.8.4
           - 8.10.7
           - 9.0.1
+          - 9.4.7
         exclude:
           - os: macOS-latest
             ghc: 8.6.5
@@ -25,10 +26,10 @@ jobs:
             ghc: 8.6.5
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.ref == 'refs/heads/master'
 
-    - uses: haskell/actions/setup@v1
+    - uses: haskell-actions/setup@v2
       id: setup-haskell-cabal
       name: Setup Haskell
       with:
@@ -38,7 +39,7 @@ jobs:
       run: |
         cabal freeze
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       name: Cache ~/.cabal/store
       with:
         path: ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
@@ -64,6 +65,7 @@ jobs:
           - 8.8.4
           - 8.10.7
           - 9.0.1
+          - 9.4.7
         exclude:
           - os: macOS-latest
             ghc: 8.6.5
@@ -71,17 +73,17 @@ jobs:
             ghc: 8.6.5
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.ref == 'refs/heads/master'
 
-    - uses: haskell/actions/setup@v1
+    - uses: haskell-actions/setup@v2
       name: Setup Haskell Stack
       with:
         ghc-version: ${{ matrix.ghc }}
         stack-no-global: true
         enable-stack: true
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       name: Cache ~/.stack
       with:
         path: ~/.stack

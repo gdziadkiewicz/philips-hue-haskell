@@ -15,6 +15,7 @@ module Hue.Internal.Light where
 import Prelude hiding (fail)
 
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Time (LocalTime)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -24,7 +25,6 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-import qualified Data.HashMap.Lazy as HashMap
 import Data.Word
 import Data.Function
 import Data.Foldable
@@ -451,7 +451,7 @@ instance FromJSON ColorMode where
 instance FromJSON ScanResult where
   parseJSON = withObject "Scan result object" $ \v -> do
     lastScanTime <- v .: "lastscan"
-    lightMap <- parseJSON $ Object $ HashMap.delete "lastscan" v
+    lightMap <- parseJSON $ Object $ KeyMap.delete "lastscan" v
     new <- Map.toList <$> traverse parseName lightMap
     pure $ ScanResult new lastScanTime
     where
