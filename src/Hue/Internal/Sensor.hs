@@ -15,6 +15,7 @@ module Hue.Internal.Sensor where
 import Prelude hiding (fail)
 
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Time (LocalTime)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -182,7 +183,7 @@ instance ToJSON SensorName where
 instance FromJSON ScanResult where
   parseJSON = withObject "Scan result object" $ \v -> do
     lastScanTime <- v .: "lastscan"
-    sensorMap <- parseJSON $ Object $ HashMap.delete "lastscan" v
+    sensorMap <- parseJSON $ Object $ KeyMap.delete "lastscan" v
     new <- Map.toList <$> traverse parseName sensorMap
     pure $ ScanResult new lastScanTime
     where

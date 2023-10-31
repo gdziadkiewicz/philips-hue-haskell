@@ -43,7 +43,7 @@ library
                       , http-types
                       , blaze-builder
                       , hostname
-                      , aeson < 2
+                      , aeson > 2
                       , bytestring
                       , text
                       , containers
