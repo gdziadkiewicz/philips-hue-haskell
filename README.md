@@ -6,6 +6,23 @@ Control Philips Hue lights with Haskell.
 
 To get started, import the `Hue` module.
 
+Supported compilers
+-------------------
+
+The supported GHC versions are 9.6.7, 9.10.3, 9.12.4, and 9.14.1 only.
+CI builds and tests each version with Cabal and Stack on Linux, macOS, and Windows.
+
+`stack.yaml` defaults to GHC 9.6.7. To use another supported compiler, select
+its configuration, for example:
+
+```sh
+stack --stack-yaml stack-9.14.1.yaml test
+```
+
+The GHC 9.14.1 configuration overrides the compiler of the pinned GHC 9.12.4
+nightly snapshot and relaxes dependency bounds while that compiler has no
+matching Stackage snapshot.
+
 API Coverage
 ------------
 - [x] **Lights**
