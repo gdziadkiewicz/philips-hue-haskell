@@ -27,7 +27,7 @@ module Hue (
 , HueError(..)
 ) where
 
-import Control.Monad.Except
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hue.Internal
 import Hue.Config
 

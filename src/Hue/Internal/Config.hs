@@ -26,7 +26,8 @@ import Data.Maybe
 
 import Control.Exception.Safe
 import Control.Applicative
-import Control.Monad.Except
+import Control.Monad (guard)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans.Maybe
 
 import Data.Aeson

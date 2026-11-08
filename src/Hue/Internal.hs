@@ -29,6 +29,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 
 import Control.Applicative
 import Control.Exception.Safe
+import Control.Monad (mzero)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Fail

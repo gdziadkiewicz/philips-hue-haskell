@@ -20,6 +20,7 @@ import qualified Data.Text as Text
 import Control.Concurrent (threadDelay)
 import Control.Monad.Loops (untilJust)
 import Control.Monad.Except
+import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import Hue.Internal
 import Hue.Internal.Request
